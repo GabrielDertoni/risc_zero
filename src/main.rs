@@ -1,21 +1,10 @@
 #![allow(dead_code)]
 
-enum Op {
-    ADD,
+enum OpCode {
+    NOOP,
+    ARITH,
     ADDI,
-    MULT,
-    DIV,
-    MOV,
-    AND,
-    ANDI,
-    OR,
-    NOT,
-    SHL,
-    SHR,
-    BEQ,
-    BNE,
-    CEQ,
-    CLT,
+    JUMP,
     LDB,
     STB,
     LDW,
@@ -23,7 +12,26 @@ enum Op {
     LUI,
 }
 
-type Inst = u16;
+struct Inst(u16);
+
+impl Inst {
+    fn op_code(&self) -> OpCode {
+        use OpCode::*;
+
+        match (self.0 >> 12) & 0xf {
+            0 => NOOP,
+            1 => ARITH,
+            2 => ADDI,
+            3 => JUMP,
+            4 => LDB,
+            5 => STB,
+            6 => LDW,
+            7 => STW,
+            8 => LUI,
+            n => panic!("Unexpected opcode: {}", n),
+        }
+    }
+}
 
 fn main() {
     println!("Hello, world!");
