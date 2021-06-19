@@ -72,6 +72,7 @@
 ## Layout das instruções:
 
 Tipo | OpCode | Reg1 | Reg2 | Im | Opts
+-----|--------|------|------|----|-----
 R    | 4      | 4    | 4    | -  | 4
 I    | 4      | 4    | -    | 8  | -
 M    | 4      | 4    | 4    | 5  | -
