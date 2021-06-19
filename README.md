@@ -9,16 +9,16 @@
 
 ### Registradores
 
-- 8 registradores expostos
+- 16 registradores expostos
+    - TMP (Usado pelo montador)
     - HI (High)
     - LO (Low)
     - SP (Stack pointer)
     - ADR (Address)
     - ACC (Acumulador)
     - FL (Flags)
-    - X (Registrador livre)
-    - Y (Registrador livre)
-- Registradores ocultos: *program counter, tmp.*
+    - R1..R9
+- Registradores ocultos: *program counter.*
 
 ## Instruções
 
@@ -67,5 +67,14 @@
     - PUTD (Put decimal)
     - PUTS (Put string) Esboço da arquitetura
 
+
+
+## Layout das instruções:
+
+Tipo | OpCode | Reg1 | Reg2 | Im | Opts
+R    | 4      | 4    | 4    | -  | 4
+I    | 4      | 4    | -    | 8  | -
+M    | 4      | 4    | 4    | 5  | -
+J    | 4      | 4    | -    | -  | 8
 
 
