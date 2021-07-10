@@ -1,0 +1,38 @@
+
+zasm = { SOI ~ (stmt | NEWLINE)* ~ EOI }
+
+stmt = { marker | label | inst | lit | str }
+
+marker = { include | macro_rule | define }
+include = { "@include" ~ str ~ eol }
+define = { "@define" ~ ident ~ lit ~ eol }
+
+label = ${ lbl_name ~ ":" }
+
+inst = { ident ~ arg ~ ("," ~ arg)* ~ eol}
+
+arg = ${ arg_reg ~ ("(" ~ arg_imm ~ ")")? }
+    arg_reg = ${ lit | macro_arg | ident }
+    arg_imm = ${ num | macro_arg }
+
+lit = ${ lbl_name | chr | num }
+
+lbl_name = @{ "."? ~ ident }
+
+num = @{ "-"? ~ number }
+chr = @{ "'" ~ "\\"? ~ ANY ~ "'"}
+str = @{ "\"" ~ (("\\" ~ ANY) | (!"\"" ~ ANY))* ~ "\"" }
+
+ident = @{ ident_letter ~ (ident_letter | ASCII_DIGIT)* }
+
+number = @{ ASCII_DIGIT+ }
+
+macro_rule = { "@macro" ~ ident ~ macro_args ~ "{" ~ (stmt | NEWLINE)* ~ "}" }
+macro_args = { macro_arg ~ ("," ~ macro_arg)* }
+macro_arg = ${ "%" ~ ident }
+
+ident_letter = _{ ASCII_ALPHA | "_" }
+eol = _{ NEWLINE | EOI }
+
+WHITESPACE = _{ " " | "\t" }
+COMMENT = _{ ";" ~ (!NEWLINE ~ ANY)* }

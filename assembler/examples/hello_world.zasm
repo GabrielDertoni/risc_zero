@@ -1,0 +1,37 @@
+
+
+
+@macro push %reg {
+    stw %reg, SP(0)
+    addi SP, -1
+}
+
+@macro pop %reg {
+    ldw %reg, SP(1)
+    addi SP, 1
+}
+
+@macro putc %reg {
+    li
+    mov AC, 1
+    int
+}
+
+main:
+    ; R1 is the char pointer
+    li R1, msg
+.loop:
+    ldb X, R1(0)
+
+    ceq zero, X
+    bne .loop_end
+
+    mov AC, 1               ; Value for putchar software interrupt
+    int                     ; Cause the software interrupt
+
+    jmp .loop
+.loop_end:
+
+    hlt
+
+msg: "Hello, World"
