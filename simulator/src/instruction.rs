@@ -1,3 +1,4 @@
+pub const REG_NUMBER: usize = 16;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reg {
@@ -120,7 +121,6 @@ impl From<u16> for Instruction {
         }
     }
 }
-
 
 #[cfg(test)]
 mod test {
