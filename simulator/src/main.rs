@@ -6,7 +6,7 @@ use instruction::*;
 
 fn main() {
     let mut reg_list = [0; REG_NUMBER];
-    let curr_instruction: Instruction = Instruction::from(0x1790);
+    let curr_instruction = Instruction::from(0x1790);
 
     match curr_instruction {
         // Arithmetic instructions
