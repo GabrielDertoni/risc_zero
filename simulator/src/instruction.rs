@@ -1,6 +1,6 @@
 pub const REG_NUMBER: usize = 16;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Reg {
     TMP,
     HI,
