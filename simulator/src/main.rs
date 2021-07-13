@@ -20,7 +20,7 @@ fn main() {
         Instruction::Mult(reg1, reg2) => reg_bank[reg1] *= reg_bank[reg2],
         Instruction::Div(reg1, reg2)  => {
             match reg_bank[reg2] {
-                0   => panic!("Unexpected value for divider: {}. Can't divide by zero.", reg2 as i32),
+                0   => panic!("Unexpected value for divider: {}. Can't divide by zero.", reg2 as i16),
                 div => {
                     reg_bank[Reg::HI] = reg_bank[reg1] / div;
                     reg_bank[Reg::LO] = reg_bank[reg1] % div;
@@ -29,6 +29,12 @@ fn main() {
         },
         
         // Logical operators instructions
+        Instruction::And(reg1, reg2) => reg_bank[reg1] &= reg_bank[reg2],
+        Instruction::Or(reg1, reg2) => reg_bank[reg1] |= reg_bank[reg2],
+        Instruction::Not(reg1) => reg_bank[reg1] = !reg_bank[reg1],
+        Instruction::Shl(reg1, reg2) => reg_bank[reg1] <<= reg_bank[reg2],
+        Instruction::Shr(reg1, reg2) => reg_bank[reg1] >>= reg_bank[reg2],
+
         _ => unreachable!(),
     };
 }
