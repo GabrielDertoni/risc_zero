@@ -1,6 +1,10 @@
 #![allow(dead_code)]
 #![feature(box_patterns)]
 #![feature(btree_drain_filter)]
+#![feature(assert_matches)]
+#![feature(maybe_uninit_array_assume_init)]
+#![feature(maybe_uninit_extra)]
+#![feature(maybe_uninit_uninit_array)]
 
 use clap::clap_app;
 
@@ -12,8 +16,8 @@ mod parser;
 mod codegen;
 mod utils;
 
-use crate::parser::parse_zasm;
-use crate::codegen::Assembler;
+// use crate::parser::parse_zasm;
+// use crate::codegen::Assembler;
 
 fn main() -> std::io::Result<()> {
 

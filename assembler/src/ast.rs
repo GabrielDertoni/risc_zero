@@ -1,73 +1,132 @@
 use pest::Span;
+use pest::iterators::Pairs;
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
-pub struct Spanned<'a, T> {
-    pub inner: T,
-    pub span: Span<'a>,
+use crate::parser::ParserRule;
+
+macro_rules! spanned {
+    () => { };
+    (pub struct $name:ident<$life:lifetime $(, $ts:tt)*> { $(pub $member:ident : $ty:ty,)* } $($rest:tt)* ) => {
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct $name<$life $(, $ts)*> {
+            $(pub $member: $ty,)*
+            pub span: Span<$life>,
+        }
+
+        impl<$life $(, $ts)*> $name<$life $(, $ts)*> {
+            #[inline]
+            pub fn new($($member : $ty,)* span: Span<$life>) -> $name<$life $(, $ts)*> {
+                $name {
+                    $($member,)*
+                    span,
+                }
+            }
+
+            #[inline]
+            pub fn span(&self) -> Span<$life> {
+                self.span.clone()
+            }
+        }
+
+        spanned! { $($rest)* }
+    };
 }
 
-impl<'a, T> Spanned<'a, T> {
-    pub fn span(&self) -> Span<'a> { self.span.clone() }
-}
+macro_rules! impl_span {
+    () => { };
 
-impl<'a, T> Spanned<'a, T> {
-    pub fn new(inner: T, span: Span<'a>) -> Spanned<'a, T> {
-        Spanned { inner, span }
-    }
+    (struct $name:ident<$life:lifetime $(, $ts:tt)*> => $expr:expr; $($rest:tt)*) => {
+        impl<$life $(, $ts)*> $name<$life $(, $ts)*> {
+            #[inline]
+            pub fn span(&self) -> Span<$life> {
+                $expr
+            }
+        }
 
-    pub fn to_inner(self) -> T {
-        self.inner
+        impl_span! { $($rest)* }
+    };
+
+    (enum $name:ident<$life:lifetime $(, $ts:tt)*> => match { $($pat:pat => $expr:expr,)+ } $($rest:tt)*) => {
+        impl<$life $(, $ts)*> $name<$life $(, $ts)*> {
+            #[inline]
+            pub fn span(&self) -> Span<$life> {
+                use $name::*;
+
+                match self {
+                    $(
+                        $pat => $expr,
+                    )+
+                }
+            }
+        }
+
+        impl_span! { $($rest)* }
     }
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum Op {
-    Hlt = 0,
-    Add = 1,
-    Mul = 2,
-    Cle = 3,
-    Ceq = 4,
-    Jmp = 5,
-    Beq = 6,
-    Cpy = 7,
-    Put = 8,
-    Ptn = 9,
-
-
-    Psh,
-    Pop,
-    Cal,
-    Ret,
+    Noop,
+    Add,
+    Mult,
+    Mov,
+    Div,
+    Cle,
+    Clt,
+    Addi,
+    Lui,
+    Jmp,
+    Beq,
+    Bne,
+    Ldb,
+    Stb,
+    Ldw,
+    Stw,
 }
 
 impl Op {
     pub fn nargs(&self) -> usize {
-        match self {
-            Op::Add => 3,
-            Op::Mul => 3,
-            Op::Cle => 3,
-            Op::Ceq => 3,
-            Op::Beq => 2,
-            Op::Cpy => 2,
-            Op::Jmp => 1,
-            Op::Put => 1,
-            Op::Ptn => 1,
-            Op::Hlt => 0,
+        use Op::*;
 
-            Op::Psh => 1,
-            Op::Pop => 1,
-            Op::Cal => 1,
-            Op::Ret => 0,
+        match self {
+            Noop => 0,
+            Add  => 2,
+            Mult => 2,
+            Mov  => 2,
+            Div  => 2,
+            Cle  => 2,
+            Clt  => 2,
+            Addi => 2,
+            Lui  => 2,
+            Jmp  => 2,
+            Beq  => 2,
+            Bne  => 2,
+            Ldb  => 2,
+            Stb  => 2,
+            Ldw  => 2,
+            Stw  => 2,
         }
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RegAddr {
+    Tmp,
+    Hi,
+    Lo,
+    Sp,
+    Adr,
+    Acc,
+    Flags,
+    R1, R2, R3, R4, R5, R6, R7, R8, R9,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Prog<'a> {
     pub stmts: Vec<Stmt<'a>>,
     pub span: Span<'a>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Stmt<'a> {
     Label(Label<'a>),
     Inst(Inst<'a>),
@@ -75,142 +134,159 @@ pub enum Stmt<'a> {
     Macro(Macro<'a>),
     Include(Str<'a>),
     Define(Ident<'a>, Lit<'a>),
-}
-
-#[derive(Debug, Clone)]
-pub struct Macro<'a> {
-    pub name: Ident<'a>,
-    pub args: Vec<MacroArg<'a>>,
-    pub stmts: Vec<Stmt<'a>>,
-    pub span: Span<'a>,
-}
-
-#[derive(Debug, Clone)]
-pub enum MacroArg<'a> {
-    Lit(Ident<'a>),
-    Reg(Ident<'a>),
-}
-
-#[derive(Debug, Clone)]
-pub struct Ident<'a> {
-    pub content: &'a str,
-    pub span: Span<'a>,
-}
-
-pub type Label<'a> = Spanned<'a, (&'a str, usize)>;
-pub type Num<'a> = Spanned<'a, i32>;
-pub type Str<'a> = Spanned<'a, &'a str>;
-pub type Chr<'a> = Spanned<'a, char>;
-
-#[derive(Debug, Clone)]
-pub struct Inst<'a> {
-    pub op: Op,
-    pub args: Vec<Arg<'a>>,
-    pub span: Span<'a>,
-}
-
-#[derive(Debug, Clone)]
-pub enum Lit<'a> {
-    Lbl(Label<'a>),
-    Num(Num<'a>),
-    Chr(Chr<'a>),
     Str(Str<'a>),
 }
 
-impl<'a> Lit<'a> {
-    pub fn span(&self) -> Span<'a> {
-        match self {
-            Lit::Lbl(lbl) => lbl.span.clone(),
-            Lit::Num(num) => num.span.clone(),
-            Lit::Str(s)   => s.span.clone(),
-            Lit::Chr(c)   => c.span.clone(),
-        }
+/*
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MacroArg<'a> {
+    Imm(Ident<'a>),
+    Reg(Ident<'a>),
+}
+*/
+
+spanned! {
+    pub struct Reg<'a> {
+        pub addr: RegAddr,
+    }
+
+    pub struct Macro<'a> {
+        pub name: Ident<'a>,
+        pub args: Vec<Ident<'a>>,
+        pub contents: Pairs<'a, ParserRule>,
+    }
+
+    pub struct Ident<'a> {
+        pub content: &'a str,
+    }
+
+    pub struct Num<'a> {
+        pub val: i16,
+    }
+
+    pub struct Str<'a> {
+        pub content: &'a str,
+    }
+
+    pub struct Chr<'a> {
+        pub chr: char,
+    }
+
+    pub struct Inst<'a> {
+        pub ident: Ident<'a>,
+        pub args: Vec<Arg<'a>>,
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Label<'a> {
+    pub ident: Ident<'a>,
+    pub id: usize,
+}
+
+impl<'a> Label<'a> {
+    #[inline]
+    pub fn new(ident: Ident<'a>, id: usize) -> Label<'a> {
+        Label { ident, id }
+    }
+
+    #[inline]
+    fn span(&self) -> Span<'a> {
+        self.ident.span()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Lit<'a> {
+    Num(Num<'a>),
+    Chr(Chr<'a>),
+    Str(Str<'a>),
+    Lbl(Label<'a>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Arg<'a> {
     Imm(Lit<'a>),
-    Lbl(Label<'a>),
-    Reg(Ident<'a>),
-    RegImm(Ident<'a>, Num<'a>),
+    Reg(Reg<'a>),
+    RegImm(Reg<'a>, Lit<'a>),
 }
 
-impl<'a, T> std::ops::Deref for Spanned<'a, T> {
-    type Target = T;
-    fn deref(&self) -> &T { &self.inner }
-}
-
-impl<'a, T> std::ops::DerefMut for Spanned<'a, T> {
-    fn deref_mut(&mut self) -> &mut T { &mut self.inner }
-}
-
-impl<'a, T> std::convert::AsRef<T> for Spanned<'a, T> {
-    fn as_ref(&self) -> &T {
-        &self.inner
+impl_span! {
+    enum Arg<'a> => match {
+        Imm(lit) => lit.span(),
+        Reg(reg) => reg.span(),
+        RegImm(imm, _) => imm.span(),
     }
-}
 
-pub fn mk_lbl<'a>(name: &'a str, span: Span<'a>) -> Label<'a> {
-    Spanned::new((name, 0), span)
-}
-
-impl<'a> Inst<'a> {
-    pub fn new(op: Op, args: Vec<Arg<'a>>, span: Span<'a>) -> Inst<'a> {
-        Inst { op, args, span }
+    enum Lit<'a> => match {
+        Num(num) => num.span(),
+        Chr(chr) => chr.span(),
+        Str(s)   => s.span(),
+        Lbl(lbl) => lbl.span(),
     }
-}
-
-impl<'a> Arg<'a> {
-    pub fn span(&self) -> Span<'a> {
-        match self {
-            Arg::Lbl(lbl) => lbl.span(),
-            Arg::Lit(lit) => lit.span(),
-        }
-    }
-}
-
-impl<'a> From<Label<'a>> for Arg<'a> {
-    fn from(v: Label<'a>) -> Arg<'a> { Arg::Lbl(v) }
-}
-
-impl<'a> From<Lit<'a>> for Arg<'a> {
-    fn from(v: Lit<'a>) -> Arg<'a> { Arg::Lit(v) }
-}
-
-impl<'a> From<Num<'a>> for Lit<'a> {
-    fn from(v: Num<'a>) -> Lit<'a> { Lit::Num(v) }
-}
-
-impl<'a> From<Chr<'a>> for Lit<'a> {
-    fn from(v: Chr<'a>) -> Lit<'a> { Lit::Chr(v) }
-}
-
-impl<'a> From<Str<'a>> for Lit<'a> {
-    fn from(v: Str<'a>) -> Lit<'a> { Lit::Str(v) }
-}
-
-impl<'a> From<Label<'a>> for Lit<'a> {
-    fn from(v: Label<'a>) -> Lit<'a> { Lit::Lbl(v) }
 }
 
 use std::fmt;
 use std::fmt::{ Display, Formatter };
 
+impl<'a> Display for Ident<'a> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        Display::fmt(self.content, f)
+    }
+}
+
+impl<'a> Display for Str<'a> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "\"{}\"", self.content)
+    }
+}
+
+impl<'a> Display for Macro<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "@macro {} ", self.name)?;
+
+        for (i, arg) in self.args.iter().enumerate() {
+            write!(f, "{}", arg)?;
+
+            if i < self.args.len() - 1 {
+                write!(f, ", ")?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/*
+impl<'a> Display for MacroArg<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            MacroArg::Imm(ident) => write!(f, "#{}", ident),
+            MacroArg::Reg(ident) => write!(f, "%{}", ident),
+        }
+    }
+}
+*/
+
 impl<'a> Display for Stmt<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Stmt::Label(lbl) => write!(f, "{}:", lbl.inner.0),
-            Stmt::Inst(inst) => Display::fmt(inst, f),
-            Stmt::Lit(lit)   => Display::fmt(lit, f),
-            Stmt::Org(num)   => write!(f, ".org {}", num.inner),
+            Stmt::Label(lbl)        => write!(f, "{}:", lbl),
+            Stmt::Inst(inst)        => Display::fmt(inst, f),
+            Stmt::Lit(lit)          => Display::fmt(lit, f),
+            Stmt::Macro(mac)        => Display::fmt(mac, f),
+            Stmt::Include(s)        => write!(f, "@include {}", s),
+            Stmt::Define(name, def) => write!(f, "@define {} {}", name, def),
+            Stmt::Str(s)            => write!(f, "{}", s),
         }
     }
 }
 
 impl<'a> Display for Inst<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{} ", self.op)?;
+        write!(f, "{} ", self.ident)?;
 
         for arg in &self.args {
             write!(f, "{} ", arg)?;
@@ -223,63 +299,95 @@ impl<'a> Display for Inst<'a> {
 impl<'a> Display for Arg<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Arg::Lbl(Spanned { inner: (name, id), .. }) => {
-                write!(f, "<{}", name)?;
-                if *id > 0 {
-                    write!(f, "_{:02x}", id)?;
-                }
-                write!(f, ">")
-            },
-            Arg::Lit(lit) => Display::fmt(lit, f),
+            Arg::Imm(lit)         => write!(f, "{}", lit),
+            Arg::Reg(reg)         => write!(f, "{}", reg),
+            Arg::RegImm(reg, imm) => write!(f, "{}({})", reg, imm),
         }
+    }
+}
+
+impl<'a> Display for RegAddr {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        use RegAddr::*;
+
+        let s = match self {
+            Tmp   => "$tmp",
+            Hi    => "$hi",
+            Lo    => "$lo",
+            Sp    => "$sp",
+            Adr   => "$adr",
+            Acc   => "$acc",
+            Flags => "$flg",
+            R1    => "$r1",
+            R2    => "$r2",
+            R3    => "$r3",
+            R4    => "$r4",
+            R5    => "$r5",
+            R6    => "$r6",
+            R7    => "$r7",
+            R8    => "$r8",
+            R9    => "$r9",
+        };
+
+        write!(f, "{}", s)
+    }
+}
+
+impl<'a> Display for Reg<'a> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.addr, f)
+    }
+}
+
+impl<'a> Display for Label<'a> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.ident, f)
+    }
+}
+
+impl<'a> Display for Num<'a> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.val, f)
     }
 }
 
 impl<'a> Display for Lit<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Lit::Chr(chr) => write!(f, "'{}'", chr.inner),
-            Lit::Str(s)   => write!(f, "\"{}\"", s.inner),
-            Lit::Num(num) => write!(f, "{}", num.inner),
-            Lit::Ref(r)   => write!(f, "&{}", r),
-            Lit::Deref(d) => write!(f, "*{}", d),
-            Lit::Lbl(Spanned { inner: (name, id), .. }) => {
-                write!(f, "'{}", name)?;
-                if *id > 0 {
-                    write!(f, "_{:02x}", id)?;
-                }
-                Ok(())
-            },
+            Lit::Num(num) => write!(f, "{}", num.val),
+            Lit::Chr(chr) => write!(f, "'{}'", chr.chr),
+            Lit::Str(s)   => write!(f, "\"{}\"", s.content),
+            Lit::Lbl(lbl) => write!(f, "{}", lbl),
         }
     }
 }
 
 impl Display for Op {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let name = match self {
-            Op::Hlt => "hlt",
-            Op::Add => "add",
-            Op::Mul => "mul",
-            Op::Cle => "cle",
-            Op::Ceq => "ceq",
-            Op::Jmp => "jmp",
-            Op::Beq => "beq",
-            Op::Cpy => "cpy",
-            Op::Put => "put",
-            Op::Ptn => "ptn",
+        use Op::*;
 
-            Op::Psh => "psh",
-            Op::Pop => "pop",
-            Op::Cal => "cal",
-            Op::Ret => "ret",
+        let name = match self {
+            Noop => "noop",
+            Add  => "add",
+            Mult => "mult",
+            Mov  => "mov",
+            Div  => "div",
+            Cle  => "cle",
+            Clt  => "clt",
+            Addi => "addi",
+            Lui  => "lui",
+            Jmp  => "jmp",
+            Beq  => "beq",
+            Bne  => "bne",
+            Ldb  => "ldb",
+            Stb  => "stb",
+            Ldw  => "ldw",
+            Stw  => "stw",
         };
 
         write!(f, "{}", name)
-    }
-}
-
-impl<'a, T: Display> Display for Spanned<'a, T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        Display::fmt(&self.inner, f)
     }
 }

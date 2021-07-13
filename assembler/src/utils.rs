@@ -7,33 +7,18 @@ where
     Self: Sized,
     Self::Item: Sized,
 {
-    fn take_collect_n<const N: usize>(self) -> Option<[Self::Item; N]> {
-        unsafe {
-            let arr: [Self::Item; N] = MaybeUninit::uninit().assume_init();
+    fn to_array<const N: usize>(mut self) -> Option<[Self::Item; N]> {
+        let mut arr = MaybeUninit::uninit_array();
 
-            for i in 0..N {
-                if let Some(val) = self.next() {
-                    arr[i] = val;
-                } else {
-                    return None;
-                }
+        for i in 0..N {
+            if let Some(val) = self.next() {
+                arr[i].write(val);
+            } else {
+                return None;
             }
-
-            Some(arr)
         }
-    }
 
-    fn take_collect_some<const N: usize>(self) -> [Option<Self::Item>; N] {
-        unsafe {
-            let arr: [Option<Self::Item>; N] = MaybeUninit::uninit().assume_init();
-            
-            let mut fused = self.fuse();
-
-            for i in 0..N {
-                arr[i] = fused.next();
-            }
-            arr
-        }
+        unsafe { Some(MaybeUninit::array_assume_init(arr)) }
     }
 }
 

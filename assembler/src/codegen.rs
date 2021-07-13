@@ -1,5 +1,6 @@
 #![allow(unused_macros)]
 
+/*
 use std::collections::HashMap;
 use std::collections::BTreeMap;
 
@@ -790,4 +791,4 @@ impl<'a> Assembler<'a> {
         ast::Spanned::new((name, self.macro_count), span)
     }
 }
-
+*/
