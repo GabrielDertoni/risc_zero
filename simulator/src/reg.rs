@@ -1,6 +1,6 @@
 pub const REG_COUNT: usize = 16;
 
-// FL: [...|ZERO]
+// FL: [15b...|ZERO]
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Reg {
