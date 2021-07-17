@@ -6,7 +6,7 @@
 
 - Endereçamento de 16 bits
 - 8 registradores no total (16 bits)
-- Little endian
+- Big Endian
 
 ### Registradores
 

@@ -3,38 +3,68 @@
 mod instruction;
 mod reg;
 mod reg_bank;
+mod utils;
 
 use instruction::*;
 use reg::Reg;
 use reg_bank::RegBank;
+use utils::*;
 
 // Valor temporário
 const MEMORY_SIZE: usize = 1000;
 
 fn main() {
     let mut reg_bank = RegBank::new();
-    let mut stack_memory = [0 as u8; MEMORY_SIZE];
-    reg_bank[Reg::SP] = 0;
-    let curr_instruction = Instruction::from(0x1790);
+    let mut memory = vec![0_u8; MEMORY_SIZE];
 
+    reg_bank[Reg::SP] = (memory.len()-1) as i16;
+    let mut program_counter: i16 = 0;
+
+    let curr_instruction = Instruction::from(0x1790);
     match curr_instruction {
+
         // Arithmetic instructions
         Instruction::Mov(reg1, reg2)  => reg_bank[reg1] = reg_bank[reg2],
-        Instruction::Add(reg1, reg2)  => reg_bank[reg1] += reg_bank[reg2],
-        Instruction::Addi(reg1, imm)  => reg_bank[reg1] += imm as i16,
-        Instruction::Mult(reg1, reg2) => reg_bank[reg1] *= reg_bank[reg2],
+        Instruction::Add(reg1, reg2)  => {
+            let (result, is_overflow) = reg_bank[reg1].overflowing_add(reg_bank[reg2]);
+            reg_bank[reg1] = result;
+
+            set_carry_flag(&mut reg_bank, is_overflow);
+            set_zero_flag(&mut reg_bank, result == 0);
+            set_negative_flag(&mut reg_bank, result.is_negative());
+        }
+        Instruction::Addi(reg1, imm)  => {
+            let (result, is_overflow) = reg_bank[reg1].overflowing_add(imm as i16);
+            reg_bank[reg1] = result;
+
+            set_carry_flag(&mut reg_bank, is_overflow);
+            set_zero_flag(&mut reg_bank, result == 0);
+            set_negative_flag(&mut reg_bank, result.is_negative());
+        }
+        Instruction::Mult(reg1, reg2) => {
+            let (result, is_overflow) = reg_bank[reg1].overflowing_mul(reg_bank[reg2]);
+            reg_bank[reg1] = result;
+
+            set_carry_flag(&mut reg_bank, is_overflow);
+            set_zero_flag(&mut reg_bank, result == 0);
+            set_negative_flag(&mut reg_bank, result.is_negative());
+        }
         Instruction::Div(reg1, reg2)  => {
-            match reg_bank[reg2] {
-                0   => panic!("Unexpected value for divider in: {}. Can't divide by zero.", Reg::to_string(reg2)),
-                div => {
-                    reg_bank[Reg::HI] = reg_bank[reg1] / div;
-                    reg_bank[Reg::LO] = reg_bank[reg1] % div;
-                }
-            }
+            let (result, is_overflow) = reg_bank[reg1].overflowing_div_euclid(reg_bank[reg2]);
+            reg_bank[Reg::HI] = result;
+
+            set_carry_flag(&mut reg_bank, is_overflow);
+            set_zero_flag(&mut reg_bank, result == 0);
+            set_negative_flag(&mut reg_bank, result.is_negative());
+
+            let (result, is_overflow) = reg_bank[reg1].overflowing_rem_euclid(reg_bank[reg2]);
+            reg_bank[Reg::LO] = result;
+            set_carry_flag(&mut reg_bank, is_overflow);
         },
         
         // Logical operators instructions
         Instruction::And(reg1, reg2) => reg_bank[reg1] &= reg_bank[reg2],
+        Instruction::Andi(reg1, immediate) => reg_bank[reg1] &= immediate as i16,
         Instruction::Or(reg1, reg2) => reg_bank[reg1] |= reg_bank[reg2],
         Instruction::Not(reg1) => reg_bank[reg1] = !reg_bank[reg1],
         Instruction::Shl(reg1, reg2) => reg_bank[reg1] <<= reg_bank[reg2],
@@ -42,62 +72,50 @@ fn main() {
 
         // Comparators
         Instruction::Ceq(reg1, reg2) => {
-            if reg_bank[reg1] == reg_bank[reg2] {
-                reg_bank[Reg::FL] &= 0xfe;
-            } else {
-                reg_bank[Reg::FL] |= 0x01;
-            }
+            let comparator_result: bool = reg_bank[reg1] == reg_bank[reg2];
+            set_zero_flag(&mut reg_bank, comparator_result);
         }
         Instruction::Clt(reg1, reg2) => {
-            if reg_bank[reg1] < reg_bank[reg2] {
-                reg_bank[Reg::FL] &= 0xfe;
-            } else {
-                reg_bank[Reg::FL] |= 0x01;
-            }
+            let comparator_result: bool = reg_bank[reg1] != reg_bank[reg2];
+            set_zero_flag(&mut reg_bank, comparator_result);
         }
 
-        // Stack memory related instructions
+        // Memory related instructions
         Instruction::Ldb(reg1, reg2, immediate) => {
-            let memory_final_address = (reg_bank[reg2] as u8 + immediate/2) as usize;
-            reg_bank[reg1] = stack_memory[memory_final_address] as i16;
-
-            if reg2 == Reg::SP {
-                reg_bank[Reg::SP] += 2;
-            }
+            let memory_final_address = (reg_bank[reg2] + immediate as i16) as usize;
+            reg_bank[reg1] = memory[memory_final_address] as i16;
         }
         Instruction::Stb(reg1, reg2, immediate) => {
-            let memory_final_address = (reg_bank[reg2] as u8 + immediate/2) as usize;
-            stack_memory[memory_final_address] = reg_bank[reg1] as u8;
-
-            if reg2 == Reg::SP {
-                reg_bank[Reg::SP] += 1;
-            }
+            let memory_final_address = (reg_bank[reg2] + immediate as i16) as usize;
+            memory[memory_final_address] = reg_bank[reg1] as u8;
         }
         Instruction::Ldw(reg1, reg2, immediate) => {
-            let memory_final_address = (reg_bank[reg2] as u8 + immediate/2) as usize;
-            let lower = stack_memory[memory_final_address];
-            let upper = stack_memory[memory_final_address+1];
+            let memory_final_address = (reg_bank[reg2] + immediate as i16) as usize;
+            let upper = memory[memory_final_address];
+            let lower = memory[memory_final_address-1];
 
-            reg_bank[reg1] = 0;
-            reg_bank[reg1] |= upper as i16;
-            reg_bank[reg1] <<= 8;
-            reg_bank[reg1] |= lower as i16;
-
-            if reg2 == Reg::SP {
-                reg_bank[Reg::SP] -= 2;
-            }
+            reg_bank[reg1] = i16::from_be_bytes([upper, lower]);
         }
         Instruction::Stw(reg1, reg2, immediate) => {
-            let memory_final_address = (reg_bank[reg2] as u8 + immediate/2) as usize;
-            stack_memory[memory_final_address] = reg_bank[reg1] as u8; 
-            stack_memory[memory_final_address+1] = (reg_bank[reg1] >> 8) as u8; 
+            let memory_final_address = (reg_bank[reg2] + immediate as i16) as usize;
+            let be_vec = reg_bank[reg1].to_be_bytes();
 
-            if reg2 == Reg::SP {
-                reg_bank[Reg::SP] += 2;
+            memory[memory_final_address] = be_vec[0];
+            memory[memory_final_address-1] = be_vec[1];
+        }
+        Instruction::Lui(reg1, immediate) => reg_bank[reg1] = i16::from_be_bytes([immediate, 0x00]),
+
+        // Branch instructions
+        Instruction::Beq(reg1) => {
+            if get_zero_flag(&reg_bank) == 0 {
+                program_counter = reg_bank[reg1];
             }
         }
-        Instruction::Lui(reg1, immediate) => reg_bank[reg1] = (immediate << 8) as i16,
-
+        Instruction::Bne(reg1) => {
+            if get_zero_flag(&reg_bank) != 0 {
+                program_counter = reg_bank[reg1];
+            }
+        }
         _ => unreachable!(),
     };
 }

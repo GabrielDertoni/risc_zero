@@ -20,7 +20,6 @@ impl Default for RegBank {
     }
 }
 
-
 impl Index<Reg> for RegBank {
     type Output = i16;
 

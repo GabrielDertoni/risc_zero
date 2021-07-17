@@ -15,7 +15,7 @@ pub enum Instruction {
     Shr(Reg, Reg),
     Ceq(Reg, Reg),
     Clt(Reg, Reg),
-    Addi(Reg, u8), // Falta implementar
+    Addi(Reg, u8), 
     Lui(Reg, u8),
     Jmp(Reg),
     Beq(Reg),
@@ -33,7 +33,7 @@ impl From<u16> for Instruction {
         let opcode = (code >> 12) & 0xf;
         match opcode {
             0 => Noop,
-            // Arithmetic
+            // R-type instructions: Register to register related instructions
             1 => {
                 let reg1 = Reg::from_addr(((code >> 8) & 0xf) as u8);
                 let reg2 = Reg::from_addr(((code >> 4) & 0xf) as u8);
@@ -55,7 +55,7 @@ impl From<u16> for Instruction {
                     _ => panic!("Unexpected arithmetic instruction: {}", opt),
                 }
             },
-            // Jump
+            // J-type instructions: Branch related instructions
             2 => {
                 let reg = Reg::from_addr(((code >> 8) & 0xf) as u8);
                 let opt = (code & 0xf) as u8;
@@ -67,26 +67,29 @@ impl From<u16> for Instruction {
                     _ => panic!("Unexpected jump instruction: {}", opt),
                 }
             },
-            3 | 4 => {
+            // I-type instructions: Immediate value related instructions
+            3 | 4 | 5 => {
                 let reg = Reg::from_addr(((code >> 8) & 0xf) as u8);
                 let immediate: u8 = (code & 0xf) as u8;
 
-                if code == 3 {
-                    Addi(reg, immediate)
-                } else {
-                    Lui(reg, immediate)
+                match code {
+                    3 => Addi(reg, immediate),
+                    4 => Lui(reg, immediate),
+                    5 => Andi(reg, immediate),
+                    _ => unreachable!(),
                 }
             },
-            5 | 6 | 7 | 8 => {
+            // M-type instructions: Memory related
+            6 | 7 | 8 | 9 => {
                 let reg1 = Reg::from_addr(((code >> 8) & 0xf) as u8);
                 let reg2 = Reg::from_addr(((code >> 4) & 0xf) as u8);
                 let immediate = (code & 0xf) as u8;
                 
                 match opcode {
-                    5 => Ldb(reg1, reg2, immediate),
-                    6 => Stb(reg1, reg2, immediate),
-                    7 => Ldw(reg1, reg2, immediate),
-                    8 => Stw(reg1, reg2, immediate),
+                    6 => Ldb(reg1, reg2, immediate),
+                    7 => Stb(reg1, reg2, immediate),
+                    8 => Ldw(reg1, reg2, immediate),
+                    9 => Stw(reg1, reg2, immediate),
                     _ => unreachable!(),
                 }
             },
