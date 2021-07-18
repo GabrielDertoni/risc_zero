@@ -63,12 +63,12 @@ fn main() {
         },
         
         // Logical operators instructions
-        Instruction::And(reg1, reg2) => reg_bank[reg1] &= reg_bank[reg2],
-        Instruction::Andi(reg1, immediate) => reg_bank[reg1] &= immediate as i16,
-        Instruction::Or(reg1, reg2) => reg_bank[reg1] |= reg_bank[reg2],
-        Instruction::Not(reg1) => reg_bank[reg1] = !reg_bank[reg1],
-        Instruction::Shl(reg1, reg2) => reg_bank[reg1] <<= reg_bank[reg2],
-        Instruction::Shr(reg1, reg2) => reg_bank[reg1] >>= reg_bank[reg2],
+        Instruction::And(reg1, reg2)       => reg_bank[reg1] &=  reg_bank[reg2],
+        Instruction::Andi(reg1, immediate) => reg_bank[reg1] &=  immediate as i16,
+        Instruction::Or(reg1, reg2)        => reg_bank[reg1] |=  reg_bank[reg2],
+        Instruction::Not(reg1)             => reg_bank[reg1] =  !reg_bank[reg1],
+        Instruction::Shl(reg1, reg2)       => reg_bank[reg1] <<= reg_bank[reg2],
+        Instruction::Shr(reg1, reg2)       => reg_bank[reg1] >>= reg_bank[reg2],
 
         // Comparators
         Instruction::Ceq(reg1, reg2) => {
@@ -97,11 +97,9 @@ fn main() {
             reg_bank[reg1] = i16::from_be_bytes([upper, lower]);
         }
         Instruction::Stw(reg1, reg2, immediate) => {
-            let memory_final_address = (reg_bank[reg2] + immediate as i16) as usize;
             let be_vec = reg_bank[reg1].to_be_bytes();
-
-            memory[memory_final_address] = be_vec[0];
-            memory[memory_final_address-1] = be_vec[1];
+            let addr = (reg_bank[reg2] + immediate as i16) as usize;
+            memory[addr..addr + 2].copy_from_slice(&be_vec);
         }
         Instruction::Lui(reg1, immediate) => reg_bank[reg1] = i16::from_be_bytes([immediate, 0x00]),
 
