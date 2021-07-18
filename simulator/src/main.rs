@@ -29,37 +29,37 @@ fn main() {
             let (result, is_overflow) = reg_bank[reg1].overflowing_add(reg_bank[reg2]);
             reg_bank[reg1] = result;
 
-            set_carry_flag(&mut reg_bank, is_overflow);
-            set_zero_flag(&mut reg_bank, result == 0);
-            set_negative_flag(&mut reg_bank, result.is_negative());
+            reg_bank.set_carry_flag(is_overflow);
+            reg_bank.set_zero_flag(result == 0);
+            reg_bank.set_negative_flag(result.is_negative());
         }
         Instruction::Addi(reg1, imm)  => {
             let (result, is_overflow) = reg_bank[reg1].overflowing_add(imm as i16);
             reg_bank[reg1] = result;
 
-            set_carry_flag(&mut reg_bank, is_overflow);
-            set_zero_flag(&mut reg_bank, result == 0);
-            set_negative_flag(&mut reg_bank, result.is_negative());
+            reg_bank.set_carry_flag(is_overflow);
+            reg_bank.set_zero_flag(result == 0);
+            reg_bank.set_negative_flag(result.is_negative());
         }
         Instruction::Mult(reg1, reg2) => {
             let (result, is_overflow) = reg_bank[reg1].overflowing_mul(reg_bank[reg2]);
             reg_bank[reg1] = result;
 
-            set_carry_flag(&mut reg_bank, is_overflow);
-            set_zero_flag(&mut reg_bank, result == 0);
-            set_negative_flag(&mut reg_bank, result.is_negative());
+            reg_bank.set_carry_flag(is_overflow);
+            reg_bank.set_zero_flag(result == 0);
+            reg_bank.set_negative_flag(result.is_negative());
         }
         Instruction::Div(reg1, reg2)  => {
             let (result, is_overflow) = reg_bank[reg1].overflowing_div_euclid(reg_bank[reg2]);
             reg_bank[Reg::HI] = result;
 
-            set_carry_flag(&mut reg_bank, is_overflow);
-            set_zero_flag(&mut reg_bank, result == 0);
-            set_negative_flag(&mut reg_bank, result.is_negative());
+            reg_bank.set_carry_flag(is_overflow);
+            reg_bank.set_zero_flag(result == 0);
+            reg_bank.set_negative_flag(result.is_negative());
 
             let (result, is_overflow) = reg_bank[reg1].overflowing_rem_euclid(reg_bank[reg2]);
             reg_bank[Reg::LO] = result;
-            set_carry_flag(&mut reg_bank, is_overflow);
+            reg_bank.set_carry_flag(is_overflow);
         },
         
         // Logical operators instructions
@@ -73,11 +73,11 @@ fn main() {
         // Comparators
         Instruction::Ceq(reg1, reg2) => {
             let comparator_result: bool = reg_bank[reg1] == reg_bank[reg2];
-            set_zero_flag(&mut reg_bank, comparator_result);
+            reg_bank.set_zero_flag(comparator_result);
         }
         Instruction::Clt(reg1, reg2) => {
             let comparator_result: bool = reg_bank[reg1] != reg_bank[reg2];
-            set_zero_flag(&mut reg_bank, comparator_result);
+            reg_bank.set_zero_flag(comparator_result);
         }
 
         // Memory related instructions
@@ -107,12 +107,12 @@ fn main() {
 
         // Branch instructions
         Instruction::Beq(reg1) => {
-            if get_zero_flag(&reg_bank) == 0 {
+            if reg_bank.get_zero_flag() {
                 program_counter = reg_bank[reg1];
             }
         }
         Instruction::Bne(reg1) => {
-            if get_zero_flag(&reg_bank) != 0 {
+            if reg_bank.get_zero_flag() {
                 program_counter = reg_bank[reg1];
             }
         }
