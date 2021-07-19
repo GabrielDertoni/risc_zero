@@ -63,3 +63,33 @@ impl Reg {
     }
 }
 
+use std::fmt;
+use std::fmt::{ Display, Formatter };
+
+
+impl<'a> Display for Reg {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        use Reg::*;
+
+        let s = match self {
+            TMP => "$tmp",
+            HI  => "$hi",
+            LO  => "$lo",
+            SP  => "$sp",
+            ADR => "$adr",
+            ACC => "$acc",
+            FL  => "$flg",
+            R1  => "$r1",
+            R2  => "$r2",
+            R3  => "$r3",
+            R4  => "$r4",
+            R5  => "$r5",
+            R6  => "$r6",
+            R7  => "$r7",
+            R8  => "$r8",
+            R9  => "$r9",
+        };
+
+        write!(f, "{}", s)
+    }
+}
