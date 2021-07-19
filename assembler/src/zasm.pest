@@ -2,18 +2,25 @@
 zasm = { SOI ~ stmts ~ EOI }
 
 stmts = { (stmt | NEWLINE)* }
-stmt = { include | define | macro_rule | label | inst | lit | str }
+stmt = { include
+       | define
+       | macro_rule
+       | label
+       | inst
+       | ("(" ~  lit ~ ")")
+       | str
+       }
 
 include = { "@include" ~ str ~ eol }
 define = { "@define" ~ ident ~ lit ~ eol }
 macro_rule = { "@macro" ~ ident ~ macro_args ~ macro_body }
     macro_args = { macro_arg ~ ("," ~ macro_arg)* }
-    macro_arg = ${ "%"? ~ "#"? ~ ident }
+    macro_arg = ${ ("%" | "#") ~ ident }
     macro_body = { "{" ~ (stmt | NEWLINE)* ~ "}" }
 
 label = ${ lbl_name ~ ":" }
 
-inst = { ident ~ arg_list ~ eol}
+inst = { ident ~ arg_list? ~ eol}
     arg_list = { arg ~ ("," ~ arg)* }
 
 arg = { arg_reg_imm | arg_reg | arg_imm }

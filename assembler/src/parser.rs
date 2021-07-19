@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use pest_derive::Parser;
 use pest::Parser;
-use pest::Span;
 use pest::iterators::{ Pair, Pairs };
 
 use crate::ast::*;
@@ -202,20 +201,25 @@ fn parse_arg<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<A
 }
 
 fn parse_inst<'a>(pair: Pair<'a, Rule>, mut cx: Option<&mut Context<'a>>) -> Result<Inst<'a>> {
-    let span = pair.as_span();
     let mut inst_iter = pair.into_inner();
-    let ident = inst_iter.next().unwrap().into();
+    let ident: Ident = inst_iter.next().unwrap().into();
+    let mut span = ident.span();
 
-    let arg_list: Vec<_> = inst_iter
-        .next()
-        .unwrap()       // Rule::arg_list
-        .into_inner()
-        .collect();
+    let arg_list = match inst_iter.next() {
+        Some(arg_list) => {
+            // Fix the span to range from the ident to the end of the argument list. This is
+            // necessary because we don't want the `eol` rule to be included in the span.
+            span = span.start_pos().span(&arg_list.as_span().end_pos());
+            arg_list.into_inner().collect()
+        },
+        None           => vec![],
+    };
 
     let args = arg_list
         .into_iter()
         .map(|el| parse_arg(el, cx.as_deref_mut()))
         .collect::<Result<_>>()?;
+
 
     Ok(Inst { ident, args, span })
 }
