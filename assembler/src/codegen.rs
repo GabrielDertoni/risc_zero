@@ -507,17 +507,31 @@ where
 
         match inst_name {
             // R - type instructions
-            "add"  |
-            "mult" |
-            "div"  |
-            "mov"  |
-            "and"  |
-            "or"   |
-            "not"  |
-            "shl"  |
-            "shr"  |
-            "ceq"  |
-            "clt"  => {
+            "not" => {
+                let dest = match inst.args.as_slice() {
+                    [Arg::Reg(dest)] => dest,
+                    [_] => return error!(
+                        "expected a register argument",
+                        span
+                    ),
+                    _ => return error!(
+                        format!("expected 1 argument, but got {}", inst.args.len()),
+                        span
+                    ),
+                };
+
+                let opcode = 1;
+                let opt = 6;
+
+                let mut encoded: u16 = 0;
+                encoded |= opcode << 12;
+                encoded |= (dest.addr as u16) << 8;
+                encoded |= opt;
+                self.emit_word(encoded)?;
+            }
+
+            "add" | "mult" | "div" | "mov" | "and" | "or" | "shl" | "shr" |
+            "ceq" | "clt"  => {
                 let (dest, src) = match inst.args.as_slice() {
                     [Arg::Reg(dest), Arg::Reg(src)] => (dest, src),
                     [_, _] => return error!(
@@ -556,9 +570,7 @@ where
             }
 
             // J - type instructions
-            "beq"  |
-            "bne"  |
-            "jmp"  => {
+            "beq" | "bne" | "jmp"  => {
                 let target = match inst.args.as_slice() {
                     [Arg::Reg(target)] => target,
                     [_] => return error!(
@@ -588,9 +600,7 @@ where
             }
 
             // I - type instructions
-            "addi" |
-            "andi" |
-            "lui"  => {
+            "addi" | "andi" | "lui" => {
                 let (dest, imm) = match inst.args.as_slice() {
                     [Arg::Reg(dest), Arg::Imm(imm)] => {
                         let imm = self.assemble_immediate(imm)?;
@@ -622,10 +632,7 @@ where
                 self.emit_word(encoded)?;
             }
 
-            "ldb"  |
-            "stb"  |
-            "ldw"  |
-            "stw"  => {
+            "ldb" | "stb" | "ldw" | "stw"  => {
                 let (dest, reg, imm) = match inst.args.as_slice() {
                     [Arg::Reg(dest), Arg::RegImm(reg, imm)] => {
                         let imm = self.assemble_immediate(imm)?;
@@ -676,6 +683,8 @@ where
             }
 
             mac if self.macros.contains_key(mac) => {
+                self.macro_ctx.macro_depth += 1;
+
                 let mac = self.macros.get(mac).unwrap();
                 
                 if mac.args.len() != inst.args.len() {
@@ -686,14 +695,14 @@ where
                 }
 
                 for (macro_arg, inst_arg) in mac.args.iter().zip(&inst.args) {
-                    self.macro_ctx.macro_args.insert(macro_arg.content, inst_arg.clone());
+                    self.macro_ctx.insert_macro_arg(macro_arg.content, inst_arg.clone());
                 }
 
                 let stmts = parse_stmts(mac.contents.clone(), Some(&mut self.macro_ctx))?;
                 self.assemble_stmts(&stmts)?;
             }
 
-            _      => return error!("instruction not supported", span),
+            _ => return error!("instruction not supported", span),
             /*
             "get",
             "put",
