@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 #![feature(box_patterns)]
 #![feature(btree_drain_filter)]
 #![feature(assert_matches)]
@@ -24,9 +23,9 @@ fn main() -> std::io::Result<()> {
     let matches = clap_app!(tapec =>
         (version: "0.1.0")
         (author: "Gabriel Dertoni <gab.dertoni@gmail.com>")
-        (about: "A compiler for the ZASM programming language")
+        (about: "A assembler for the ZASM assembly language")
         (@arg SOURCE: +required "The ZASM source file to compile")
-        (@arg output: -o --output +takes_value "Output compiled tape")
+        (@arg output: -o --output +takes_value "File to output the assembled binary")
         // (@arg expand: -E --expand "Compile and also print the desugared code")
     ).get_matches();
 
