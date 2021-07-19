@@ -501,6 +501,7 @@ where
 
     fn assemble_inst(&mut self, inst: &ast::Inst<'a>) -> Result<()> {
         use ast::Arg;
+        use architecture_utils::Instruction::*;
 
         let span = inst.span();
         let inst_name = inst.ident.content;
@@ -509,7 +510,7 @@ where
             // R - type instructions
             "not" => {
                 let dest = match inst.args.as_slice() {
-                    [Arg::Reg(dest)] => dest,
+                    [Arg::Reg(dest)] => dest.addr,
                     [_] => return error!(
                         "expected a register argument",
                         span
@@ -520,20 +521,13 @@ where
                     ),
                 };
 
-                let opcode = 1;
-                let opt = 6;
-
-                let mut encoded: u16 = 0;
-                encoded |= opcode << 12;
-                encoded |= (dest.addr as u16) << 8;
-                encoded |= opt;
-                self.emit_word(encoded)?;
+                self.emit_word(Not(dest).encode())?;
             }
 
             "add" | "mult" | "div" | "mov" | "and" | "or" | "shl" | "shr" |
             "ceq" | "clt"  => {
                 let (dest, src) = match inst.args.as_slice() {
-                    [Arg::Reg(dest), Arg::Reg(src)] => (dest, src),
+                    [Arg::Reg(dest), Arg::Reg(src)] => (dest.addr, src.addr),
                     [_, _] => return error!(
                         "expected register arguments",
                         span
@@ -544,35 +538,27 @@ where
                     ),
                 };
 
-                let opt = match inst_name {
-                    "add"  =>  0,
-                    "mult" =>  1,
-                    "mov"  =>  2,
-                    "div"  =>  3,
-                    "and"  =>  4,
-                    "or"   =>  5,
-                    "not"  =>  6,
-                    "shl"  =>  7,
-                    "shr"  =>  8,
-                    "ceq"  =>  9,
-                    "clt"  => 10,
+                let inst = match inst_name {
+                    "add"  => Add(dest, src),
+                    "mult" => Mult(dest, src),
+                    "mov"  => Mov(dest, src),
+                    "div"  => Div(dest, src),
+                    "and"  => And(dest, src),
+                    "or"   => Or(dest, src),
+                    "shl"  => Shl(dest, src),
+                    "shr"  => Shr(dest, src),
+                    "ceq"  => Ceq(dest, src),
+                    "clt"  => Clt(dest, src),
                     _      => unreachable!(),
                 };
 
-                let opcode = 1;
-
-                let mut encoded: u16 = 0;
-                encoded |= opcode << 12;
-                encoded |= (dest.addr as u16) << 8;
-                encoded |= ( src.addr as u16) << 4;
-                encoded |= opt;
-                self.emit_word(encoded)?;
+                self.emit_word(inst.encode())?;
             }
 
             // J - type instructions
             "beq" | "bne" | "jmp"  => {
                 let target = match inst.args.as_slice() {
-                    [Arg::Reg(target)] => target,
+                    [Arg::Reg(target)] => target.addr,
                     [_] => return error!(
                         "expected argument to be a register",
                         span
@@ -583,20 +569,14 @@ where
                     ),
                 };
 
-                let opt = match inst_name {
-                    "jmp"  => 0,
-                    "beq"  => 1,
-                    "bne"  => 2,
+                let inst = match inst_name {
+                    "jmp"  => Jmp(target),
+                    "beq"  => Beq(target),
+                    "bne"  => Bne(target),
                     _      => unreachable!(),
                 };
-                
-                let opcode = 2;
 
-                let mut encoded: u16 = 0;
-                encoded |= opcode << 12;
-                encoded |= (target.addr as u16) << 8;
-                encoded |= opt;
-                self.emit_word(encoded)?;
+                self.emit_word(inst.encode())?;
             }
 
             // I - type instructions
@@ -604,7 +584,7 @@ where
                 let (dest, imm) = match inst.args.as_slice() {
                     [Arg::Reg(dest), Arg::Imm(imm)] => {
                         let imm = self.assemble_immediate(imm)?;
-                        (dest, imm)
+                        (dest.addr, imm)
                     }
 
                     [_, _] => return error!(
@@ -618,25 +598,21 @@ where
                     ),
                 };
 
-                let opcode = match inst_name {
-                    "addi" => 3,
-                    "lui"  => 4,
-                    "andi" => 5,
+                let inst = match inst_name {
+                    "addi" => Addi(dest, imm),
+                    "andi" => Andi(dest, imm),
+                    "lui"  => Lui(dest, imm),
                     _      => unreachable!(),
                 };
 
-                let mut encoded: u16 = 0;
-                encoded |= opcode << 12;
-                encoded |= (dest.addr as u16) << 8;
-                encoded |= imm as u16;
-                self.emit_word(encoded)?;
+                self.emit_word(inst.encode())?;
             }
 
             "ldb" | "stb" | "ldw" | "stw"  => {
                 let (dest, reg, imm) = match inst.args.as_slice() {
                     [Arg::Reg(dest), Arg::RegImm(reg, imm)] => {
                         let imm = self.assemble_immediate(imm)?;
-                        (dest, reg, imm)
+                        (dest.addr, reg.addr, imm)
                     }
 
                     [_, _] => return error!(
@@ -650,36 +626,23 @@ where
                     ),
                 };
 
-                let opcode = match inst_name {
-                    "ldb"  => 6,
-                    "stb"  => 7,
-                    "ldw"  => 8,
-                    "stw"  => 9,
+                let inst = match inst_name {
+                    "ldb"  => Ldb(dest, reg, imm),
+                    "stb"  => Stb(dest, reg, imm),
+                    "ldw"  => Ldw(dest, reg, imm),
+                    "stw"  => Stw(dest, reg, imm),
                     _      => unreachable!(),
                 };
 
-                let mut encoded: u16 = 0;
-                encoded |= opcode << 12;
-                encoded |= (dest.addr as u16) << 8;
-                encoded |= ( reg.addr as u16) << 4;
-                encoded |= imm as u16;
-                self.emit_word(encoded)?;
+                self.emit_word(inst.encode())?;
             }
 
-            "int"  => {
-                let opcode = 10;
-
-                let mut encoded: u16 = 0;
-                encoded |= opcode << 12;
-                self.emit_word(encoded)?;
+            "int" => {
+                self.emit_word(Int.encode())?;
             }
 
             "hlt" => {
-                let opcode = 11;
-
-                let mut encoded: u16 = 0;
-                encoded |= opcode << 12;
-                self.emit_word(encoded)?;
+                self.emit_word(Hlt.encode())?;
             }
 
             mac if self.macros.contains_key(mac) => {

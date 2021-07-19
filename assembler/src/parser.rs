@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::collections::BTreeMap;
 
 use pest_derive::Parser;
@@ -142,18 +141,18 @@ fn parse_lit<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<L
 }
 
 fn parse_reg(pair: Pair<Rule>) -> Result<Reg> {
-    use RegAddr::*;
+    use architecture_utils::Reg::*;
 
     let span = pair.as_span();
 
     let reg = match pair.as_str() {
-        "$tmp" => Tmp,
-        "$hi"  => Hi,
-        "$lo"  => Lo,
-        "$sp"  => Sp,
-        "$adr" => Adr,
-        "$acc" => Acc,
-        "$flg" => Flags,
+        "$tmp" => TMP,
+        "$hi"  => HI,
+        "$lo"  => LO,
+        "$sp"  => SP,
+        "$adr" => ADR,
+        "$acc" => ACC,
+        "$flg" => FL,
         "$r1"  => R1,
         "$r2"  => R2,
         "$r3"  => R3,
@@ -409,6 +408,7 @@ pub fn parse_src(program: &str) -> Result<Prog> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use architecture_utils as risc0;
 
     #[macro_export]
     macro_rules! assert_match_extract {
@@ -591,7 +591,7 @@ mod test {
         assert_matches!(
             args[0],
             Arg::Reg(Reg {
-                addr: RegAddr::Acc,
+                addr: risc0::Reg::ACC,
                 ..
             })
         );
@@ -662,7 +662,7 @@ mod test {
             args[..],
             [
                 Ident {
-                    content: "reg",
+                    content: "%reg",
                     ..
                 }
             ]
@@ -700,22 +700,22 @@ mod test {
     #[test]
     fn test_parse_arg() {
         let registers = &[
-            ("$tmp", RegAddr::Tmp),
-            ("$hi" , RegAddr::Hi),
-            ("$lo" , RegAddr::Lo),
-            ("$sp" , RegAddr::Sp),
-            ("$adr", RegAddr::Adr),
-            ("$acc", RegAddr::Acc),
-            ("$flg", RegAddr::Flags),
-            ("$r1" , RegAddr::R1),
-            ("$r2" , RegAddr::R2),
-            ("$r3" , RegAddr::R3),
-            ("$r4" , RegAddr::R4),
-            ("$r5" , RegAddr::R5),
-            ("$r6" , RegAddr::R6),
-            ("$r7" , RegAddr::R7),
-            ("$r8" , RegAddr::R8),
-            ("$r9" , RegAddr::R9),
+            ("$tmp", risc0::Reg::TMP),
+            ("$hi" , risc0::Reg::HI),
+            ("$lo" , risc0::Reg::LO),
+            ("$sp" , risc0::Reg::SP),
+            ("$adr", risc0::Reg::ADR),
+            ("$acc", risc0::Reg::ACC),
+            ("$flg", risc0::Reg::FL),
+            ("$r1" , risc0::Reg::R1),
+            ("$r2" , risc0::Reg::R2),
+            ("$r3" , risc0::Reg::R3),
+            ("$r4" , risc0::Reg::R4),
+            ("$r5" , risc0::Reg::R5),
+            ("$r6" , risc0::Reg::R6),
+            ("$r7" , risc0::Reg::R7),
+            ("$r8" , risc0::Reg::R8),
+            ("$r9" , risc0::Reg::R9),
         ];
 
         for (input, addr) in registers {
@@ -764,7 +764,7 @@ mod test {
             arg_reg_imm,
             Arg::RegImm(
                 Reg {
-                    addr: RegAddr::Sp,
+                    addr: risc0::Reg::SP,
                     ..
                 },
                 Lit::Expr(Expr::Num(Num {

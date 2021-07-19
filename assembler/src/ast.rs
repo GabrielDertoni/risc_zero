@@ -1,5 +1,6 @@
 use pest::Span;
 use pest::iterators::Pairs;
+use architecture_utils as risc0;
 
 use crate::parser::ParserRule;
 
@@ -108,18 +109,6 @@ impl Op {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RegAddr {
-    Tmp,
-    Hi,
-    Lo,
-    Sp,
-    Adr,
-    Acc,
-    Flags,
-    R1, R2, R3, R4, R5, R6, R7, R8, R9,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Prog<'a> {
     pub stmts: Vec<Stmt<'a>>,
@@ -165,7 +154,7 @@ pub enum MacroArg<'a> {
 
 spanned! {
     pub struct Reg<'a> {
-        pub addr: RegAddr,
+        pub addr: risc0::Reg,
     }
 
     pub struct Macro<'a> {
@@ -405,33 +394,6 @@ impl<'a> Display for Arg<'a> {
             Arg::Reg(reg)         => write!(f, "{}", reg),
             Arg::RegImm(reg, imm) => write!(f, "{}({})", reg, imm),
         }
-    }
-}
-
-impl<'a> Display for RegAddr {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        use RegAddr::*;
-
-        let s = match self {
-            Tmp   => "$tmp",
-            Hi    => "$hi",
-            Lo    => "$lo",
-            Sp    => "$sp",
-            Adr   => "$adr",
-            Acc   => "$acc",
-            Flags => "$flg",
-            R1    => "$r1",
-            R2    => "$r2",
-            R3    => "$r3",
-            R4    => "$r4",
-            R5    => "$r5",
-            R6    => "$r6",
-            R7    => "$r7",
-            R8    => "$r8",
-            R9    => "$r9",
-        };
-
-        write!(f, "{}", s)
     }
 }
 
