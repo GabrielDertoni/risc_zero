@@ -1,7 +1,14 @@
-@include "utils.h"
+; @include "utils.h"
 
 @macro la %re, #label {
+    andi %re, 0
     lui %re, (#label >> 8)
+    addi %re, (#label & 0xff)
+}
+
+@macro li %re, #imm {
+    andi %re, 0
+    addi %re, #imm
 }
 
 @macro push %reg {
@@ -22,18 +29,20 @@
 
 main:
     ; r1 is the char pointer
-    li $r1, msg
+    la $r1, msg
 .loop:
-    ldb $x, $r1(0)
+    ldb $r2, $r1(0)
 
-    ceq $zero, $x
+    andi $acc, 0
+    ceq $acc, $r2
     la $adr, .loop_end
     bne $adr
 
-    mov $ac, 1              ; Value for putchar software interrupt
+    li  $acc, 1             ; Value for putchar software interrupt
     int                     ; Cause the software interrupt
 
-    jmp .loop
+    la $r2, .loop
+    jmp $r2
 .loop_end:
 
     hlt

@@ -82,7 +82,7 @@ impl<'a> LabelName<'a> {
 pub struct Assembler<'a, W> {
     writer: W,
     expand: bool,
-    parent: Option<ast::Label<'a>>,
+    parent: Option<ast::Ident<'a>>,
     labels: HashMap<LabelName<'a>, LabelDef<'a>>,
     defines: HashMap<&'a str, ast::Lit<'a>>,
     macros: HashMap<&'a str, ast::Macro<'a>>,
@@ -167,6 +167,7 @@ where
 
     pub fn assemble(&mut self, stmts: &[ast::Stmt<'a>]) -> Result<()> {
         self.find_labels(stmts)?;
+        self.parent = None;
         self.assemble_stmts(stmts)?;
 
         Ok(())
@@ -188,10 +189,14 @@ where
     }
 
     fn assemble_stmt(&mut self, stmt: &ast::Stmt<'a>) -> Result<()> {
-        use ast::Stmt::*;
+        use ast::{ Stmt::*, Label };
 
         match stmt {
             // Assumes the label has already been accounted for in the first pass.
+            Label(Label::Global(global)) => {
+                self.parent.replace(global.clone());
+            }
+
             Label(..) => (),
 
             Inst(inst) => {
@@ -494,18 +499,13 @@ where
                     return error!("local labels are only allowed inside parent labels", span);
                 }
 
-                let parent = self.parent.as_ref().map(|lbl| lbl.ident().content);
+                let parent = self.parent.as_ref().map(|lbl| lbl.content);
                 LabelName::new(parent, local.content)
             }
 
-            Label::Global(global) => {
-                self.parent.replace(lbl.clone());
-                LabelName::new(None, global.content)
-            }
+            Label::Global(global) => LabelName::new(None, global.content),
+            Label::Macro(..)      => unreachable!(),
 
-            Label::Macro(..) => {
-                unreachable!()
-            }
         };
 
         if let Some(def) = self.labels.get(&lbl_name).cloned() {
@@ -528,12 +528,12 @@ where
                     return error!("local labels are only allowed inside parent labels", span);
                 }
 
-                let parent = self.parent.as_ref().map(|lbl| lbl.ident().content);
+                let parent = self.parent.as_ref().map(|lbl| lbl.content);
                 LabelName::new(parent, local.content)
             }
 
             Label::Global(global) => {
-                self.parent.replace(lbl.clone());
+                self.parent.replace(global.clone());
                 LabelName::new(None, global.content)
             }
 

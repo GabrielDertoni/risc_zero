@@ -1,0 +1,12 @@
+
+@macro li %re, #imm {
+    lui %re, (#imm >> 8)
+    addi %re, (#imm & 0xff)
+}
+
+main:
+    li $r1, msg
+    hlt
+
+
+msg: "Hello, World"
