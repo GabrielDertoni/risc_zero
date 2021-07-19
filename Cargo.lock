@@ -90,6 +90,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "disassembler"
+version = "0.1.0"
+dependencies = [
+ "architecture_utils",
+ "clap",
+]
+
+[[package]]
 name = "fake-simd"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
