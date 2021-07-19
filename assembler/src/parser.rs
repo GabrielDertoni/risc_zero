@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use pest_derive::Parser;
 use pest::Parser;
@@ -42,16 +43,30 @@ impl<'a> From<Pair<'a, Rule>> for Ident<'a> {
 
 #[derive(Debug, Clone)]
 pub struct Context<'a> {
-    pub macro_args: HashMap<&'a str, Arg<'a>>,
+    pub macro_args: BTreeMap<(&'a str, usize), Arg<'a>>,
     pub macro_depth: usize,
 }
 
 impl<'a> Context<'a> {
     pub fn new() -> Context<'a> {
         Context {
-            macro_args: HashMap::new(),
+            macro_args: BTreeMap::new(),
             macro_depth: 0,
         }
+    }
+
+    pub fn insert_macro_arg(&mut self, name: &'a str, arg: Arg<'a>) -> Option<Arg<'a>> {
+        let depth = self.macro_depth;
+        self.macro_args.insert((name, depth), arg)
+    }
+
+    pub fn get_macro_arg(&mut self, name: &'a str) -> Option<&Arg<'a>> {
+        let depth = self.macro_depth;
+        self.macro_args
+            .range((name, 0)..=(name, depth))
+            .rev()
+            .next() // The match to `name` with the highest possible depth.
+            .map(|(_, v)| v)
     }
 }
 
@@ -156,7 +171,7 @@ fn parse_reg(pair: Pair<Rule>) -> Result<Reg> {
 
 fn get_macro_arg<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<Arg<'a>> {
     if let Some(cx) = cx {
-        if let Some(val) = cx.macro_args.get(&pair.as_str()) {
+        if let Some(val) = cx.get_macro_arg(&pair.as_str()) {
             Ok(val.clone())
         } else {
             return error!("macro argument used but not defined", pair.as_span());
