@@ -137,6 +137,24 @@ pub enum Stmt<'a> {
     Str(Str<'a>),
 }
 
+impl<'a> Stmt<'a> {
+    pub fn as_label(&self) -> Option<&Label<'a>> {
+        if let Self::Label(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_inst(&self) -> Option<&Inst<'a>> {
+        if let Self::Inst(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+}
+
 /*
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MacroArg<'a> {
@@ -176,32 +194,73 @@ spanned! {
         pub ident: Ident<'a>,
         pub args: Vec<Arg<'a>>,
     }
+
+    pub struct BinExpr<'a> {
+        pub lhs: Box<Expr<'a>>,
+        pub operator: Ident<'a>,
+        pub rhs: Box<Expr<'a>>,
+    }
 }
 
+
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Label<'a> {
-    pub ident: Ident<'a>,
-    pub id: usize,
+pub enum Label<'a> {
+    Local(Ident<'a>),
+    Global(Ident<'a>),
+    Macro(Ident<'a>, usize),
 }
 
 impl<'a> Label<'a> {
     #[inline]
-    pub fn new(ident: Ident<'a>, id: usize) -> Label<'a> {
-        Label { ident, id }
+    pub fn local(ident: Ident<'a>) -> Label<'a> {
+        Label::Local(ident)
     }
 
     #[inline]
-    fn span(&self) -> Span<'a> {
-        self.ident.span()
+    pub fn global(ident: Ident<'a>) -> Label<'a> {
+        Label::Global(ident)
+    }
+
+    #[inline]
+    pub fn expanded(ident: Ident<'a>, id: usize) -> Label<'a> {
+        Label::Macro(ident, id)
+    }
+
+    #[inline]
+    pub fn ident(&self) -> &Ident<'a> {
+        match self {
+            Label::Local(ident)  |
+            Label::Global(ident) |
+            Label::Macro(ident, ..) => ident,
+        }
+    }
+
+    #[inline]
+    pub fn span(&self) -> Span<'a> {
+        self.ident().span()
+    }
+
+    #[inline]
+    pub fn is_local(&self) -> bool {
+        matches!(self, Label::Local(..))
+    }
+
+    #[inline]
+    pub fn is_global(&self) -> bool {
+        matches!(self, Label::Global(..))
+    }
+
+    #[inline]
+    pub fn is_expanded(&self) -> bool {
+        matches!(self, Label::Macro(..))
     }
 }
 
+// TODO: remove this type
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Lit<'a> {
-    Num(Num<'a>),
-    Chr(Chr<'a>),
+    Expr(Expr<'a>),
     Str(Str<'a>),
-    Lbl(Label<'a>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -209,6 +268,32 @@ pub enum Arg<'a> {
     Imm(Lit<'a>),
     Reg(Reg<'a>),
     RegImm(Reg<'a>, Lit<'a>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Expr<'a> {
+    Num(Num<'a>),
+    Lbl(Label<'a>),
+    Bin(BinExpr<'a>),
+    Chr(Chr<'a>),
+}
+
+impl<'a> Expr<'a> {
+    pub fn as_num(&self) -> Option<&Num<'a>> {
+        if let Self::Num(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_chr(&self) -> Option<&Chr<'a>> {
+        if let Self::Chr(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
 }
 
 impl_span! {
@@ -219,12 +304,29 @@ impl_span! {
     }
 
     enum Lit<'a> => match {
+        Expr(expr) => expr.span(),
+        Str(s)     => s.span(),
+    }
+
+    enum Expr<'a> => match {
         Num(num) => num.span(),
-        Chr(chr) => chr.span(),
-        Str(s)   => s.span(),
         Lbl(lbl) => lbl.span(),
+        Bin(bin) => bin.span(),
+        Chr(chr) => chr.span(),
     }
 }
+
+pub fn precedence_of(op: &str) -> i32 {
+    match op {
+        "|"         => 1,
+        "&"         => 2,
+        ">>" | "<<" => 3,
+        "+"  | "-"  => 4,
+        "*"  | "/"  => 5,
+        s           => unreachable!("unexpected operator '{}'", s),
+    }
+}
+
 
 use std::fmt;
 use std::fmt::{ Display, Formatter };
@@ -343,7 +445,7 @@ impl<'a> Display for Reg<'a> {
 impl<'a> Display for Label<'a> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        Display::fmt(&self.ident, f)
+        Display::fmt(&self.ident(), f)
     }
 }
 
@@ -357,13 +459,42 @@ impl<'a> Display for Num<'a> {
 impl<'a> Display for Lit<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Lit::Num(num) => write!(f, "{}", num.val),
-            Lit::Chr(chr) => write!(f, "'{}'", chr.chr),
-            Lit::Str(s)   => write!(f, "\"{}\"", s.content),
-            Lit::Lbl(lbl) => write!(f, "{}", lbl),
+            Lit::Expr(expr) => write!(f, "{}", expr),
+            Lit::Str(s)     => write!(f, "\"{}\"", s.content),
         }
     }
 }
+
+impl<'a> Display for Expr<'a> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        fn write_prec(f: &mut Formatter, expr: &Expr, prec: i32) -> fmt::Result {
+            match expr {
+                Expr::Num(num) => write!(f, "{}", num.val),
+                Expr::Chr(chr) => write!(f, "'{}'", chr.chr),
+                Expr::Lbl(lbl) => write!(f, "{}", lbl),
+                Expr::Bin(BinExpr { lhs, operator, rhs, .. }) => {
+                    let cur_prec = precedence_of(operator.content);
+                    if cur_prec < prec {
+                        write!(f, "(")?;
+                    }
+
+                    write_prec(f, lhs.as_ref(), cur_prec)?;
+                    write!(f, " {} ", operator.content);
+                    write_prec(f, lhs.as_ref(), cur_prec)?;
+
+                    if cur_prec < prec {
+                        write!(f, ")")?;
+                    }
+
+                    Ok(())
+                }
+            }
+        }
+
+        write_prec(f, self, 0)
+    }
+}
+
 
 impl Display for Op {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {

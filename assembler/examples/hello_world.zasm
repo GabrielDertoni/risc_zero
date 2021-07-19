@@ -1,5 +1,8 @@
 @include "utils.h"
 
+@macro la %re, #label {
+    lui %re, (#label >> 8)
+}
 
 @macro push %reg {
     stw %reg, $sp(0)
@@ -24,7 +27,8 @@ main:
     ldb $x, $r1(0)
 
     ceq $zero, $x
-    bne .loop_end
+    la $adr, .loop_end
+    bne $adr
 
     mov $ac, 1              ; Value for putchar software interrupt
     int                     ; Cause the software interrupt

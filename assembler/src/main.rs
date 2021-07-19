@@ -14,6 +14,7 @@ use std::fs;
 mod ast;
 mod parser;
 mod codegen;
+mod error;
 mod utils;
 
 // use crate::parser::parse_zasm;

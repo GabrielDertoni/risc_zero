@@ -1,13 +1,14 @@
 
-zasm = { SOI ~ (stmt | NEWLINE)* ~ EOI }
+zasm = { SOI ~ stmts ~ EOI }
 
+stmts = { (stmt | NEWLINE)* }
 stmt = { include | define | macro_rule | label | inst | lit | str }
 
 include = { "@include" ~ str ~ eol }
 define = { "@define" ~ ident ~ lit ~ eol }
 macro_rule = { "@macro" ~ ident ~ macro_args ~ macro_body }
     macro_args = { macro_arg ~ ("," ~ macro_arg)* }
-    macro_arg = { "%" ~ ident }
+    macro_arg = ${ "%"? ~ "#"? ~ ident }
     macro_body = { "{" ~ (stmt | NEWLINE)* ~ "}" }
 
 label = ${ lbl_name ~ ":" }
@@ -15,12 +16,12 @@ label = ${ lbl_name ~ ":" }
 inst = { ident ~ arg_list ~ eol}
     arg_list = { arg ~ ("," ~ arg)* }
 
-arg = ${ arg_reg_imm | arg_reg | arg_imm }
-    arg_reg_imm = ${ arg_reg ~ "(" ~ arg_imm ~ ")" }
-    arg_reg     = ${ reg | macro_arg }
-    arg_imm     = ${ lit | macro_arg }
+arg = { arg_reg_imm | arg_reg | arg_imm }
+    arg_reg_imm = { arg_reg ~ "(" ~ arg_imm ~ ")" }
+    arg_reg     = { reg | macro_arg }
+    arg_imm     = { lit | macro_arg }
 
-lit = ${ lbl_name | chr | expr }
+lit = { expr }
 
 lbl_name = @{ "."? ~ ident }
 
@@ -32,12 +33,11 @@ str = @{ "\"" ~ (("\\" ~ ANY) | (!"\"" ~ ANY))* ~ "\"" }
 ident = @{ ident_letter ~ (ident_letter | ASCII_DIGIT)* }
 
 expr = { atom ~ (op ~ atom)* }
-    atom = { num | paren }
+    atom = { num | chr | paren | lbl_name | macro_arg }
     paren = { "(" ~ expr ~ ")" }
     op = ${ "+" | "-" | "*" | "/" | "&" | "|" | ">>" | "<<" }
 
 number = @{ ASCII_HEX_DIGIT+ }
-
 
 
 ident_letter = _{ ASCII_ALPHA | "_" }

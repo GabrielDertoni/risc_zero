@@ -6,6 +6,8 @@ use pest::Span;
 use pest::iterators::{ Pair, Pairs };
 
 use crate::ast::*;
+use crate::error::Error;
+use crate::error;
 
 use crate::utils::IterExt;
 
@@ -16,31 +18,20 @@ pub struct ZASMParser;
 // TODO: Find a better way of exporting this rule type.
 pub type ParserRule = Rule;
 
-pub type Error = pest::error::Error<Rule>;
 type Result<T> = std::result::Result<T, Error>;
 
-macro_rules! error {
-    ($msg:expr, $span:expr) => {
-        Err(pest::error::Error::new_from_span(pest::error::ErrorVariant::CustomError { message: $msg.into() }, $span))
-    };
-}
-
+#[macro_export]
 macro_rules! fst {
     ($iter:expr) => {
         $iter.next().unwrap()
     }
 }
 
+#[macro_export]
 macro_rules! take_n {
     ($iter:expr) => {
         $iter.to_array().unwrap()
     }
-}
-
-macro_rules! first {
-    ($pair:expr) => {
-        $pair.into_inner().next().unwrap()
-    };
 }
 
 impl<'a> From<Pair<'a, Rule>> for Ident<'a> {
@@ -51,19 +42,34 @@ impl<'a> From<Pair<'a, Rule>> for Ident<'a> {
 }
 
 #[derive(Debug, Clone)]
-struct Context<'a> {
-    macro_args: HashMap<&'a str, Arg<'a>>,
-    macro_depth: usize,
+pub struct Context<'a> {
+    pub macro_args: HashMap<&'a str, Arg<'a>>,
+    pub macro_depth: usize,
+}
+
+impl<'a> Context<'a> {
+    pub fn new() -> Context<'a> {
+        Context {
+            macro_args: HashMap::new(),
+            macro_depth: 0,
+        }
+    }
 }
 
 #[inline]
 fn parse_lbl_name(lbl_name: Pair<Rule>) -> Result<Label> {
-    Ok(Label::new(lbl_name.into(), 0))
+    let ident = Ident::from(lbl_name);
+
+    if ident.content.starts_with(".") {
+        Ok(Label::local(ident))
+    } else {
+        Ok(Label::global(ident))
+    }
 }
 
 #[inline]
 fn parse_label(pair: Pair<Rule>) -> Result<Label> {
-    let lbl_name = first!(pair);
+    let lbl_name = fst!(pair.into_inner());
     parse_lbl_name(lbl_name)
 }
 
@@ -110,21 +116,17 @@ fn parse_num(pair: Pair<Rule>) -> Result<Num> {
     }
 }
 
-fn parse_lit(pair: Pair<Rule>) -> Result<Lit> {
-    let lit = first!(pair);
-    let span = lit.as_span();
+fn parse_lit<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<Lit<'a>> {
+    let lit = fst!(pair.into_inner());
 
     let parsed = match lit.as_rule() {
-        Rule::lbl_name  => Lit::Lbl(parse_lbl_name(lit)?),
-        Rule::chr       => Lit::Chr(Chr::new(extract_chr(lit.as_str()), span)),
-        Rule::expr      => Lit::Num(parse_expr(lit)?),
+        Rule::expr      => Lit::Expr(parse_expr(lit, cx)?),
         _               => unreachable!(),
     };
 
     Ok(parsed)
 }
 
-// TODO: Maybe it would be better to add a Reg type to the AST.
 fn parse_reg(pair: Pair<Rule>) -> Result<Reg> {
     use RegAddr::*;
 
@@ -153,28 +155,45 @@ fn parse_reg(pair: Pair<Rule>) -> Result<Reg> {
     Ok(Reg::new(reg, span))
 }
 
+fn get_macro_arg<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<Arg<'a>> {
+    if let Some(cx) = cx {
+        if let Some(val) = cx.macro_args.get(&pair.as_str()) {
+            Ok(val.clone())
+        } else {
+            return error!("macro argument used but not defined", pair.as_span());
+        }
+    } else {
+        return error!("cannot use macro argument outside a macro", pair.as_span());
+    }
+}
+
 fn parse_arg<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<Arg<'a>> {
     let arg = fst!(pair.into_inner());
 
     let parsed = match arg.as_rule() {
-        Rule::arg_reg     => Arg::Reg(parse_reg(fst!(arg.into_inner()))?),
-        Rule::arg_imm     => Arg::Imm(parse_lit(fst!(arg.into_inner()))?),
+        Rule::arg_reg     => {
+            let arg_reg = fst!(arg.into_inner());
+
+            match arg_reg.as_rule() {
+                Rule::reg       => Arg::Reg(parse_reg(arg_reg)?),
+                Rule::macro_arg => get_macro_arg(arg_reg, cx)?,
+                _               => unreachable!(),
+            }
+        },
+        Rule::arg_imm     => {
+            let arg_imm = fst!(arg.into_inner());
+
+            match arg_imm.as_rule() {
+                Rule::lit       => Arg::Imm(parse_lit(arg_imm, cx)?),
+                Rule::macro_arg => get_macro_arg(arg_imm, cx)?,
+                _               => unreachable!(),
+            }
+        },
         Rule::arg_reg_imm => {
             let [arg_reg, arg_imm] = arg.into_inner().to_array().unwrap();
             let reg = fst!(arg_reg.into_inner());
             let imm = fst!(arg_imm.into_inner());
-            Arg::RegImm(parse_reg(reg)?, parse_lit(imm)?)
-        },
-        Rule::macro_arg   => {
-            if let Some(cx) = cx {
-                if let Some(val) = cx.macro_args.get(&arg.as_str()) {
-                    val.clone()
-                } else {
-                    return error!("macro argument used but not defined", arg.as_span());
-                }
-            } else {
-                return error!("cannot use macro argument outside a macro", arg.as_span());
-            }
+            Arg::RegImm(parse_reg(reg)?, parse_lit(imm, cx)?)
         },
         _ => unreachable!(),
     };
@@ -182,7 +201,7 @@ fn parse_arg<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<A
     Ok(parsed)
 }
 
-fn parse_inst<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<Inst<'a>> {
+fn parse_inst<'a>(pair: Pair<'a, Rule>, mut cx: Option<&mut Context<'a>>) -> Result<Inst<'a>> {
     let span = pair.as_span();
     let mut inst_iter = pair.into_inner();
     let ident = inst_iter.next().unwrap().into();
@@ -195,24 +214,21 @@ fn parse_inst<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<
 
     let args = arg_list
         .into_iter()
-        .map(|el| parse_arg(el, cx))
+        .map(|el| parse_arg(el, cx.as_deref_mut()))
         .collect::<Result<_>>()?;
 
     Ok(Inst { ident, args, span })
 }
 
 #[inline]
-fn parse_stmts<'a>(pairs: Pairs<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<Vec<Stmt<'a>>> {
-    // pairs.map(|el| parse_stmt(el, cx)).collect()
-    let mut res = Vec::new();
-    for el in pairs {
-        res.push(parse_stmt(el, cx)?);
-    }
-    Ok(res)
+pub fn parse_stmts<'a>(pairs: Pairs<'a, Rule>, mut cx: Option<&mut Context<'a>>) -> Result<Vec<Stmt<'a>>> {
+    pairs
+        .map(|el| parse_stmt(el, cx.as_deref_mut()))
+        .collect()
 }
 
 fn parse_stmt<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<Stmt<'a>> {
-    let stmt = first!(pair);
+    let stmt = fst!(pair.into_inner());
     let span = stmt.as_span();
 
     let parsed = match stmt.as_rule() {
@@ -222,7 +238,7 @@ fn parse_stmt<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<
         },
         Rule::define  => {
             let [ident, lit] = take_n!(stmt.into_inner());
-            Stmt::Define(ident.into(), parse_lit(lit)?)
+            Stmt::Define(ident.into(), parse_lit(lit, cx)?)
         },
         Rule::macro_rule => {
             let [ident, args, stmts] = take_n!(stmt.into_inner());
@@ -240,7 +256,7 @@ fn parse_stmt<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<
         },
         Rule::label  => Stmt::Label(parse_label(stmt)?),
         Rule::inst   => Stmt::Inst(parse_inst(stmt, cx)?),
-        Rule::lit    => Stmt::Lit(parse_lit(stmt)?),
+        Rule::lit    => Stmt::Lit(parse_lit(stmt, cx)?),
         Rule::str    => Stmt::Str(parse_str(stmt)?),
         r            => unreachable!("unexpected rule {:?}", r),
     };
@@ -248,9 +264,9 @@ fn parse_stmt<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<
     Ok(parsed)
 }
 
+#[inline]
 fn parse_macro_arg(pair: Pair<Rule>) -> Result<Ident> {
-    let arg = fst!(pair.into_inner());
-    Ok(arg.into())
+    Ok(pair.into())
 }
 
 /*
@@ -267,21 +283,18 @@ fn parse_macro_arg(pair: Pair<Rule>) -> Result<MacroArg> {
 }
 */
 
-fn parse_expr(pair: Pair<Rule>) -> Result<Num> {
+fn parse_expr<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<Expr<'a>> {
 
-    // Expects pair.as_rule() == Rule::op
-    fn precedence_of(op: &str) -> i32 {
-        match op {
-            "|"         => 1,
-            "&"         => 2,
-            ">>" | "<<" => 3,
-            "+"  | "-"  => 4,
-            "*"  | "/"  => 5,
-            s           => unreachable!("unexpected operator '{}'", s),
+    fn try_to_num(expr: &Expr) -> Option<i16> {
+        match expr {
+            Expr::Lbl(..) |
+            Expr::Bin(..)  => None,
+            Expr::Chr(chr) => Some(chr.chr as i16),
+            Expr::Num(num) => Some(num.val),
         }
     }
 
-    fn compute_op<'a>(op: &'a str, a: i16, b: i16) -> i16 {
+    fn compute_op(a: i16, op: &str, b: i16) -> i16 {
         match op {
             "+"  => a + b,
             "-"  => a - b,
@@ -295,35 +308,58 @@ fn parse_expr(pair: Pair<Rule>) -> Result<Num> {
         }
     }
 
-    fn parse_atom<'a>(cur_tok: Pair<'a, Rule>) -> Result<Num<'a>> {
+    fn parse_atom<'a>(cur_tok: Pair<'a, Rule>, mut cx: Option<&mut Context<'a>>) -> Result<Expr<'a>> {
         let atom = fst!(cur_tok.into_inner());
+        let span = atom.as_span();
 
         match atom.as_rule() {
-            Rule::num   => parse_num(atom),
-            Rule::paren => {
+            Rule::num      => Ok(Expr::Num(parse_num(atom)?)),
+            Rule::chr      => Ok(Expr::Chr(Chr::new(extract_chr(atom.as_str()), span))),
+            Rule::lbl_name => Ok(Expr::Lbl(parse_lbl_name(atom)?)),
+            Rule::paren    => {
                 let expr = fst!(atom.into_inner());
-                parse_precedence(&mut expr.into_inner(), 0)
+                parse_precedence(&mut expr.into_inner(), 0, cx.as_deref_mut())
             },
-            _           => unreachable!(),
+            Rule::macro_arg => {
+                let arg = get_macro_arg(atom, cx)?;
+
+                if let Arg::Imm(Lit::Expr(expr)) = arg {
+                    Ok(expr)
+                } else {
+                    error!("expected an immediate value", span)
+                }
+            }
+            rule        => unreachable!("unexpected rule {:?}", rule),
         }
     }
 
-    fn parse_precedence<'a>(tokens: &mut Pairs<'a, Rule>, min_prec: i32) -> Result<Num<'a>> {
-        let mut lhs = parse_atom(tokens.next().unwrap())?;
+    fn parse_precedence<'a>(tokens: &mut Pairs<'a, Rule>, min_prec: i32, mut cx: Option<&mut Context<'a>>) -> Result<Expr<'a>> {
+        let mut lhs = parse_atom(tokens.next().unwrap(), cx.as_deref_mut())?;
 
         while let Some(op) = tokens.peek() {
-            let op = op.as_str();
-
-            if precedence_of(op) < min_prec {
+            let prec = precedence_of(op.as_str());
+            if prec < min_prec {
                 break;
             }
 
             tokens.next();
 
-            let rhs = parse_precedence(tokens, precedence_of(op) + 1)?;
-            let res = compute_op(op, lhs.val, rhs.val);
-            let op_span = lhs.span.start_pos().span(&rhs.span.end_pos());
-            lhs = Num::new(res, op_span);
+            let rhs = parse_precedence(tokens, prec + 1, cx.as_deref_mut())?;
+
+            // TODO: find out a better way to use the span.
+            let span = op.as_span().clone();
+
+            // If the expression can be reduced immediately, it will be.
+            if let (Some(a), Some(b)) = (try_to_num(&lhs), try_to_num(&rhs)) {
+                lhs = Expr::Num(Num::new(compute_op(a, op.as_str(), b), span));
+            } else {
+                lhs = Expr::Bin(BinExpr {
+                    lhs: Box::new(lhs),
+                    operator: op.into(),
+                    rhs: Box::new(rhs),
+                    span,
+                });
+            }
         }
 
         Ok(lhs)
@@ -331,13 +367,13 @@ fn parse_expr(pair: Pair<Rule>) -> Result<Num> {
 
 
     let mut tokens = pair.into_inner();
-    parse_precedence(&mut tokens, 0)
+    parse_precedence(&mut tokens, 0, cx)
 }
 
-pub fn parse_zasm(program: &str) -> Result<Prog> {
-    let stmts = fst!(ZASMParser::parse(Rule::zasm, program)?);
-    let span = stmts.as_span();
-    let stmts = parse_stmts(stmts.into_inner(), None)?;
+pub fn parse_zasm<'a>(zasm: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<Prog<'a>> {
+    let span = zasm.as_span();
+    let stmts = fst!(zasm.into_inner());
+    let stmts = parse_stmts(stmts.into_inner(), cx)?;
 
     Ok(Prog {
         stmts,
@@ -345,11 +381,17 @@ pub fn parse_zasm(program: &str) -> Result<Prog> {
     })
 }
 
+pub fn parse_src(program: &str) -> Result<Prog> {
+    let zasm = fst!(ZASMParser::parse(Rule::zasm, program)?);
+    parse_zasm(zasm, None)
+}
+
 
 #[cfg(test)]
 mod test {
     use super::*;
 
+    #[macro_export]
     macro_rules! assert_match_extract {
         ($expr:expr, $pat:pat => $extract:expr) => {
             match $expr {
@@ -359,10 +401,11 @@ mod test {
         };
     }
 
+    #[macro_export]
     macro_rules! parse {
         ($input:expr => $rule:path) => {
-            match ZASMParser::parse($rule, $input) {
-                Ok(mut val) => fst!(val),
+            match crate::parser::ZASMParser::parse($rule, $input) {
+                Ok(mut val) => $crate::fst!(val),
                 Err(e)  => {
                     panic!("{}", e);
                 }
@@ -377,13 +420,12 @@ mod test {
 
         assert_matches!(
             label,
-            Label {
-                ident: Ident {
+            Label::Global(
+                Ident {
                     content: "main",
                     ..
-                },
-                id: 0
-            }
+                }
+            )
         );
     }
 
@@ -398,42 +440,51 @@ mod test {
     #[test]
     fn test_parse_expr() {
         let expr = parse!("2 - 3" => Rule::expr);
-        let expr = parse_expr(expr).unwrap();
-        dbg!(&expr);
+        let expr = parse_expr(expr, None).unwrap();
+
+        let expr = assert_match_extract!(expr, Expr::Num(num) => num);
 
         assert_eq!(expr.val, 2 - 3);
 
         let expr = parse!("2 + 2 * 3" => Rule::expr);
-        let expr = parse_expr(expr).unwrap();
+        let expr = parse_expr(expr, None).unwrap();
+
+        let expr = assert_match_extract!(expr, Expr::Num(num) => num);
 
         assert_eq!(expr.val, 2 + 2 * 3);
 
         let expr = parse!("(2 + 2) * 3" => Rule::expr);
-        let expr = parse_expr(expr).unwrap();
+        let expr = parse_expr(expr, None).unwrap();
+
+        let expr = assert_match_extract!(expr, Expr::Num(num) => num);
 
         assert_eq!(expr.val, (2 + 2) * 3);
 
         let expr = parse!("0b1100 | 0b0011" => Rule::expr);
-        let expr = parse_expr(expr).unwrap();
+        let expr = parse_expr(expr, None).unwrap();
+
+        let expr = assert_match_extract!(expr, Expr::Num(num) => num);
 
         assert_eq!(expr.val, 0b1100 | 0b0011);
 
         let expr = parse!("0b1100 & 0b0011" => Rule::expr);
-        let expr = parse_expr(expr).unwrap();
+        let expr = parse_expr(expr, None).unwrap();
+
+        let expr = assert_match_extract!(expr, Expr::Num(num) => num);
 
         assert_eq!(expr.val, 0b1100 & 0b0011);
 
         let expr = parse!("0b1100 | 0xff & 0b0011" => Rule::expr);
-        let expr = parse_expr(expr).unwrap();
+        let expr = parse_expr(expr, None).unwrap();
+
+        let expr = assert_match_extract!(expr, Expr::Num(num) => num);
 
         assert_eq!(expr.val, 0b1100 | 0xff & 0b0011);
-    }
-
-    #[test]
-    fn failing() {
 
         let expr = parse!("0b1100 >> 2" => Rule::expr);
-        let expr = parse_expr(expr).unwrap();
+        let expr = parse_expr(expr, None).unwrap();
+
+        let expr = assert_match_extract!(expr, Expr::Num(num) => num);
 
         assert_eq!(expr.val, 0b1100 >> 2);
     }
@@ -441,61 +492,60 @@ mod test {
     #[test]
     fn test_parse_lit() {
         let lit_label = parse!("loop" => Rule::lit);
-        let lit_label = parse_lit(lit_label).unwrap();
+        let lit_label = parse_lit(lit_label, None).unwrap();
 
         assert_matches!(
             lit_label,
-            Lit::Lbl(Label {
-                ident: Ident {
+            Lit::Expr(Expr::Lbl(Label::Global(
+                Ident {
                     content: "loop",
                     ..
-                },
-                id: 0
-            })
+                }
+            )))
         );
 
         let lit_chr = parse!("'a'" => Rule::lit);
-        let lit_chr = parse_lit(lit_chr).unwrap();
+        let lit_chr = parse_lit(lit_chr, None).unwrap();
 
         assert_matches!(
             lit_chr,
-            Lit::Chr(Chr {
+            Lit::Expr(Expr::Chr(Chr {
                 chr: 'a',
                 ..
-            })
+            }))
         );
 
         let lit_dec = parse!("1234" => Rule::lit);
-        let lit_dec = parse_lit(lit_dec).unwrap();
+        let lit_dec = parse_lit(lit_dec, None).unwrap();
 
         assert_matches!(
             lit_dec,
-            Lit::Num(Num {
+            Lit::Expr(Expr::Num(Num {
                 val: 1234,
                 ..
-            })
+            }))
         );
 
         let lit_hex = parse!("0x1234" => Rule::lit);
-        let lit_hex = parse_lit(lit_hex).unwrap();
+        let lit_hex = parse_lit(lit_hex, None).unwrap();
 
         assert_matches!(
             lit_hex,
-            Lit::Num(Num {
+            Lit::Expr(Expr::Num(Num {
                 val: 0x1234,
                 ..
-            })
+            }))
         );
 
         let lit_bin = parse!("0b01010101" => Rule::lit);
-        let lit_bin = parse_lit(lit_bin).unwrap();
+        let lit_bin = parse_lit(lit_bin, None).unwrap();
 
         assert_matches!(
             lit_bin,
-            Lit::Num(Num {
+            Lit::Expr(Expr::Num(Num {
                 val: 0b01010101,
                 ..
-            })
+            }))
         );
     }
 
@@ -529,10 +579,10 @@ mod test {
 
         assert_matches!(
             args[1],
-            Arg::Imm(Lit::Num(Num {
+            Arg::Imm(Lit::Expr(Expr::Num(Num {
                 val: 20,
                 ..
-            }))
+            })))
         );
     }
 
@@ -561,10 +611,10 @@ mod test {
                     content: "NUM",
                     ..
                 },
-                Lit::Num(Num {
+                Lit::Expr(Expr::Num(Num {
                     val: 20120,
                     ..
-                })
+                }))
             )
         );
 
@@ -605,13 +655,10 @@ mod test {
 
         assert_matches!(
             label,
-            Stmt::Label(Label {
-                ident: Ident {
-                    content: "main",
-                    ..
-                },
-                id: 0,
-            })
+            Stmt::Label(Label::Global(Ident {
+                content: "main",
+                ..
+            }))
         );
 
         let input = "la $r1, msg";
@@ -673,7 +720,7 @@ mod test {
             let arg_imm = parse!(input => Rule::arg);
             let arg_imm = parse_arg(arg_imm, None).unwrap();
 
-            let lit = assert_match_extract!(arg_imm, Arg::Imm(Lit::Num(n)) => n);
+            let lit = assert_match_extract!(arg_imm, Arg::Imm(Lit::Expr(Expr::Num(n))) => n);
             
             assert_eq!(lit.val, *val);
         }
@@ -684,13 +731,10 @@ mod test {
 
         assert_matches!(
             arg_imm,
-            Arg::Imm(Lit::Lbl(Label {
-                ident: Ident {
-                    content: "loop",
-                    ..
-                },
-                id: 0,
-            }))
+            Arg::Imm(Lit::Expr(Expr::Lbl(Label::Global(Ident {
+                content: "loop",
+                ..
+            }))))
         );
 
         let input = "$sp(2)";
@@ -704,10 +748,10 @@ mod test {
                     addr: RegAddr::Sp,
                     ..
                 },
-                Lit::Num(Num {
+                Lit::Expr(Expr::Num(Num {
                     val: 2,
                     ..
-                })
+                }))
             )
         );
     }
