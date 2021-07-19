@@ -1,12 +1,9 @@
 #![allow(dead_code)]
 
-mod instruction;
-mod reg;
 mod reg_bank;
 mod utils;
 
-use instruction::*;
-use reg::Reg;
+use architecture_utils::*;
 use reg_bank::RegBank;
 use utils::*;
 

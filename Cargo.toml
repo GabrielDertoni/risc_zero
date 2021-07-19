@@ -2,4 +2,5 @@
 members = [
     "simulator",
     "assembler",
+    "architecture_utils",
 ]
