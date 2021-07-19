@@ -22,6 +22,7 @@ fn main() {
 
     let curr_instruction = Instruction::from(0x1790);
     match curr_instruction {
+        Instruction::Noop => (),
 
         // Arithmetic instructions
         Instruction::Mov(reg1, reg2)  => reg_bank[reg1] = reg_bank[reg2],
@@ -114,6 +115,8 @@ fn main() {
                 program_counter = reg_bank[reg1];
             }
         }
-        _ => unreachable!(),
+        Instruction::Jmp(_) => todo!(),
+        Instruction::Int => todo!(),
+        Instruction::Hlt => todo!(),
     };
 }
