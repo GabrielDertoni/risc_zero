@@ -1,3 +1,4 @@
+#![feature(array_chunks)]
 
 pub mod instruction;
 pub mod reg;

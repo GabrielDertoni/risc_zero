@@ -218,6 +218,78 @@ impl Instruction {
     }
 }
 
+/* Vector decoding */
+
+use std::iter::FromIterator;
+
+pub struct InstructionDecodeIter<I> {
+    iter: I,
+}
+
+impl<I> Iterator for InstructionDecodeIter<I>
+where
+    I: Iterator<Item = u8>,
+{
+    type Item = Result<Instruction, String>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let be_bytes = [
+            self.iter.by_ref().next(),
+            self.iter.by_ref().next(),
+        ];
+
+        match be_bytes {
+            [Some(fst), Some(snd)] => {
+                let code = u16::from_be_bytes([fst, snd]);
+                Some(Instruction::decode(code))
+            }
+
+            [Some(_), None] =>
+                Some(Err(format!("expected an even number of bytes"))),
+
+            _ => None,
+        }
+    }
+}
+
+impl Instruction {
+    pub fn decode_iter<I>(into_iter: I) -> impl Iterator<Item = Result<Instruction, String>>
+    where
+        I: IntoIterator<Item = u8>,
+    {
+        InstructionDecodeIter { iter: into_iter.into_iter() }
+    }
+
+    pub fn decode_slice<T, R>(to_slice: T) -> Result<R, String>
+    where
+        T: AsRef<[u8]>,
+        R: FromIterator<Instruction>,
+    {
+        let mut chunks_iter = to_slice.as_ref().array_chunks();
+
+        if chunks_iter.remainder().len() > 0 {
+            return Err(format!("expected slice to have an even number of elements"));
+        }
+
+        chunks_iter.by_ref()
+            .map(|&be_bytes| u16::from_be_bytes(be_bytes))
+            .map(|encoded| Instruction::decode(encoded))
+            .collect()
+    }
+
+    pub fn encode_slice<T, R>(to_slice: T) -> R
+    where
+        T: AsRef<[Instruction]>,
+        R: FromIterator<u8>,
+    {
+        to_slice.as_ref()
+            .iter()
+            .map(Instruction::encode)
+            .flat_map(u16::to_be_bytes)
+            .collect()
+    }
+}
+
 impl From<u16> for Instruction {
     fn from(code: u16) -> Instruction {
         Instruction::decode(code).unwrap()
