@@ -479,8 +479,8 @@ impl<'a> Display for Expr<'a> {
                     }
 
                     write_prec(f, lhs.as_ref(), cur_prec)?;
-                    write!(f, " {} ", operator.content);
-                    write_prec(f, lhs.as_ref(), cur_prec)?;
+                    write!(f, " {} ", operator.content)?;
+                    write_prec(f, rhs.as_ref(), cur_prec)?;
 
                     if cur_prec < prec {
                         write!(f, ")")?;
