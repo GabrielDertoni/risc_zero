@@ -29,7 +29,7 @@ pub enum Instruction {
 }
 
 impl Instruction {
-    fn decode(code: u16) -> Result<Instruction, String> {
+    pub fn decode(code: u16) -> Result<Instruction, String> {
         use Instruction::*;
 
         let opcode = (code >> 12) & 0xf;
@@ -113,7 +113,7 @@ impl Instruction {
         Ok(decoded)
     }
 
-    fn encode(&self) -> u16 {
+    pub fn encode(&self) -> u16 {
         use Instruction::*;
 
         let mut encoded: u16 = 0;
