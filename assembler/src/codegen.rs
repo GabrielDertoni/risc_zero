@@ -667,6 +667,14 @@ where
                 self.emit_word(encoded)?;
             }
 
+            "hlt" => {
+                let opcode = 11;
+
+                let mut encoded: u16 = 0;
+                encoded |= opcode << 12;
+                self.emit_word(encoded)?;
+            }
+
             mac if self.macros.contains_key(mac) => {
                 let mac = self.macros.get(mac).unwrap();
                 
@@ -828,7 +836,7 @@ mod test {
 
     use super::*;
     use crate::parser::{ ParserRule, parse_zasm };
-    use crate::{ parse, fst };
+    use crate::parse;
 
     use pest::Parser;
 
