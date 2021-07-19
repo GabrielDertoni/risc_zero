@@ -71,7 +71,7 @@ impl Instruction {
                     1 => Beq(reg),
                     2 => Bne(reg),
                     _ => return Err(
-                        format!("Unexpected jump instruction: {}", opt)
+                        format!("Unexpected jump instruction with opt {}", opt)
                     ),
                 }
             },
@@ -81,7 +81,7 @@ impl Instruction {
                 let reg = Reg::from_addr(((code >> 8) & 0xf) as u8);
                 let immediate: u8 = (code & 0xf) as u8;
 
-                match code {
+                match opcode {
                     3 => Addi(reg, immediate),
                     4 => Lui(reg, immediate),
                     5 => Andi(reg, immediate),
@@ -293,6 +293,42 @@ impl Instruction {
 impl From<u16> for Instruction {
     fn from(code: u16) -> Instruction {
         Instruction::decode(code).unwrap()
+    }
+}
+
+use std::fmt::{ Display, Formatter };
+
+
+impl Display for Instruction {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        use Instruction::*;
+
+        match self {
+            Noop                 => write!(f, "noop"),
+            Not(reg1)            => write!(f, "not  {}", reg1),
+            Add(reg1, reg2)      => write!(f, "add  {}, {}", reg1, reg2),
+            Mult(reg1, reg2)     => write!(f, "mult {}, {}", reg1, reg2),
+            Mov(reg1, reg2)      => write!(f, "mov  {}, {}", reg1, reg2),
+            Div(reg1, reg2)      => write!(f, "div  {}, {}", reg1, reg2),
+            And(reg1, reg2)      => write!(f, "and  {}, {}", reg1, reg2),
+            Or(reg1, reg2)       => write!(f, "or   {}, {}", reg1, reg2),
+            Shl(reg1, reg2)      => write!(f, "shl  {}, {}", reg1, reg2),
+            Shr(reg1, reg2)      => write!(f, "shr  {}, {}", reg1, reg2),
+            Ceq(reg1, reg2)      => write!(f, "ceq  {}, {}", reg1, reg2),
+            Clt(reg1, reg2)      => write!(f, "clt  {}, {}", reg1, reg2),
+            Addi(reg1, imm)      => write!(f, "addi {}, {}", reg1, imm),
+            Andi(reg1, imm)      => write!(f, "andi {}, {}", reg1, imm),
+            Lui(reg1, imm)       => write!(f, "lui  {}, {}", reg1, imm),
+            Jmp(reg1)            => write!(f, "jmp  {}", reg1),
+            Beq(reg1)            => write!(f, "beq  {}", reg1),
+            Bne(reg1)            => write!(f, "bne  {}", reg1),
+            Ldb(reg1, reg2, imm) => write!(f, "ldb  {}, {}({})", reg1, reg2, imm),
+            Stb(reg1, reg2, imm) => write!(f, "stb  {}, {}({})", reg1, reg2, imm),
+            Ldw(reg1, reg2, imm) => write!(f, "ldw  {}, {}({})", reg1, reg2, imm),
+            Stw(reg1, reg2, imm) => write!(f, "stw  {}, {}({})", reg1, reg2, imm),
+            Int                  => write!(f, "int"),
+            Hlt                  => write!(f, "hlt"),
+        }
     }
 }
 
