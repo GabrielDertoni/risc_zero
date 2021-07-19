@@ -10,95 +10,6 @@ use crate::parser::{ Context, parse_stmts };
 use crate::error::Error;
 use crate::error;
 
-/*
-macro_rules! inst_args {
-    ($span:expr => (@lit $($toks:tt)*)) => {
-        ast::Arg::Lit(lit!($span => $($toks)*))
-    };
-
-    ($span:expr => (% $($toks:tt)*)) => {
-        ast::Arg::Lit(lit!($span => $($toks)*))
-    };
-
-    ($span:expr => (@lbl $lbl:expr)) => {
-        ast::Arg::Lbl($lbl.into())
-    };
-
-    ($span:expr => <$lbl:ident>) => {
-        ast::Arg::Lbl($lbl.into())
-    };
-
-    ($span:expr => $lit:expr) => {
-        $lit.into()
-    };
-
-    ($span:expr =>) => { };
-}
-
-macro_rules! inst {
-    ($span:expr => $inst:ident $($tail:tt)*) => {
-        ast::Inst::new(ast::Op::$inst, vec![$(inst_args!($span => $tail)),*], $span)
-    };
-}
-
-macro_rules! lit {
-    ($span:expr => (# $expr:expr)) => {
-        ast::Lit::Num(ast::Spanned::new($expr, $span.clone()))
-    };
-
-    ($span:expr => (@num $expr:expr)) => {
-        ast::Lit::Num(ast::Spanned::new($expr, $span.clone()))
-    };
-
-    ($span:expr => (@chr $expr:expr)) => {
-        ast::Lit::Chr(ast::Spanned::new($expr, $span.clone()))
-    };
-
-    ($span:expr => (@str $expr:expr)) => {
-        ast::Lit::Str(ast::Spanned::new($expr, $span.clone()))
-    };
-
-    ($span:expr => (@lbl $expr:expr)) => {
-        ast::Lit::Lbl(ast::Spanned::new($expr, $span.clone()))
-    };
-
-    ($span:expr => [$expr:expr]) => {
-        ast::Lit::Lbl(ast::Spanned::new($expr, $span.clone()))
-    };
-
-    ($span:expr => @& $($toks:tt)*) => {
-        ast::Lit::Ref(Box::new(lit!($span => $($toks)*)))
-    };
-
-    ($span:expr => @* $($toks:tt)*) => {
-        ast::Lit::Deref(Box::new(lit!($span => $($toks)*)))
-    };
-
-    ($span:expr => $expr:expr) => {
-        $expr.into()
-    };
-}
-
-macro_rules! stmt {
-    ($span:expr => label $lbl:expr) => {
-        ast::Stmt::Label($lbl)
-    };
-
-    ($span:expr => lit $($toks:tt)*) => {
-        ast::Stmt::Lit(lit!($span => $($toks)*))
-    };
-
-    ($span:expr => $($toks:tt)*) => {
-        ast::Stmt::Inst(inst!($span => $($toks)*))
-    };
-}
-
-macro_rules! stmts {
-    ($span:expr => $([$($toks:tt)*])+) => {
-        &[$(stmt!($span => $($toks)*)),+]
-    };
-}
-*/
 
 const EMPTY_DEFAULT: i32 = -1;
 
@@ -106,47 +17,6 @@ type Result<T> = std::result::Result<T, Error>;
 
 type Addr = usize;
 type Word = u16;
-
-/*
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
-struct Ident<'a>(&'a str, usize);
-
-impl<'a> Ident<'a> {
-    #[inline]
-    fn new(name: &'a str, id: usize) -> Ident<'a> {
-        Ident(name, id)
-    }
-
-    #[inline]
-    fn is_local(&self) -> bool {
-        self.0.starts_with(".")
-    }
-}
-
-impl<'a> From<&ast::Ident<'a>> for Ident<'a> {
-    #[inline]
-    fn from(ident: &ast::Ident<'a>) -> Ident<'a> {
-        Ident::new(ident.content, 0)
-    }
-}
-
-impl<'a> From<(&'a str, usize)> for Ident<'a> {
-    #[inline]
-    fn from((name, id): (&'a str, usize)) -> Ident<'a> {
-        Ident::new(name, id)
-    }
-}
-
-impl<'a> std::fmt::Display for Ident<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)?;
-        if self.1 > 0 {
-            write!(f, "_{:02x}", self.1)?;
-        }
-        Ok(())
-    }
-}
-*/
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 struct LabelDef<'a> {
@@ -196,105 +66,6 @@ impl<'a> std::fmt::Debug for LabelRef<'a> {
     }
 }
 
-/*
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
-enum Auto<'a> {
-    Lbl(Ident<'a>, u32),
-    Num(i32, u32),
-    Str(&'a str, u32),
-}
-
-impl<'a> Auto<'a> {
-    fn unwrap_lbl(self) -> (Ident<'a>, u32) {
-        if let Auto::Lbl(s, lvl) = self {
-            (s, lvl)
-        } else {
-            panic!("tried to `unwrap_lbl` on Auto that is not Auto::Lbl")
-        }
-    }
-
-    fn unwrap_num(self) -> (i32, u32) {
-        if let Auto::Num(num, lvl) = self {
-            (num, lvl)
-        } else {
-            panic!("tried to `unwrap_num` on Auto that is not Auto::Num")
-        }
-    }
-
-    fn unwrap_str(self) -> (&'a str, u32) {
-        if let Auto::Str(s, lvl) = self {
-            (s, lvl)
-        } else {
-            panic!("tried to `unwrap_str` on Auto that is not Auto::Str")
-        }
-    }
-
-    fn ref_lvl(&self) -> u32 {
-        match self {
-            &Auto::Lbl(_, lvl) |
-            &Auto::Str(_, lvl) |
-            &Auto::Num(_, lvl) => lvl
-        }
-    }
-
-    fn is_lbl(&self) -> bool { matches!(self, Auto::Lbl(..)) }
-    fn is_num(&self) -> bool { matches!(self, Auto::Num(..)) }
-    fn is_str(&self) -> bool { matches!(self, Auto::Str(..)) }
-
-    fn is_val_eq(&self, other: &Auto<'a>) -> bool {
-        match self {
-            Auto::Lbl(a, _) => match other {
-                Auto::Lbl(b, _) => a == b,
-                _               => false,
-            },
-            Auto::Num(a, _) => match other {
-                Auto::Num(b, _) => a == b,
-                _               => false,
-            },
-            Auto::Str(a, _) => match other {
-                Auto::Str(b, _) => a == b,
-                _                => false,
-            },
-        }
-    }
-}
-
-impl<'a> std::fmt::Display for Auto<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use Auto::*;
-
-        match self {
-            Lbl(ident, lvl) => {
-                if *lvl > 0 {
-                    write!(f, "'__lbl_")?;
-                    for _ in 0..*lvl {
-                        write!(f, "ref_")?;
-                    }
-                }
-                write!(f, "{}", ident.0)?;
-                if ident.1 > 0 {
-                    write!(f, "_{:02x}", ident.1)?;
-                }
-                Ok(())
-            },
-            Num(num, lvl)  => {
-                write!(f, "'__num_")?;
-                for _ in 0..*lvl {
-                    write!(f, "ref_")?;
-                }
-                write!(f, "{}", num)
-            },
-            Str(s, lvl)    => {
-                write!(f, "'__str_")?;
-                for _ in 0..*lvl {
-                    write!(f, "ref_")?;
-                }
-                write!(f, "#[{}]", s)
-            },
-        }
-    }
-}
-*/
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 struct LabelName<'a> {
@@ -451,27 +222,11 @@ where
 
             Include(ast::Str { content: _fname, .. }) => {
                 unimplemented!()
-                /*
-                let source = std::fs::read_to_string(fname)?;
-                let prog = parse_zasm(&source)?;
-                self.assemble(&prog.stmts)?;
-                */
             }
 
             Macro(mac)  => {
                 self.macros.insert(mac.name.content, mac.clone());
             }
-
-            /*
-            Org(val)  => {
-                if val.inner < 0 {
-                    self.goto(self.tape.len() + val.inner as usize);
-                } else {
-                    self.goto(val.inner as usize);
-                }
-                Ok(0)
-            },
-            */
         }
 
         Ok(())
@@ -666,10 +421,6 @@ where
             }
 
             _ => return error!("instruction not supported", span),
-            /*
-            "get",
-            "put",
-            */
         }
         Ok(())
     }
