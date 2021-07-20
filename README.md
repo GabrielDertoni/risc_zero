@@ -66,7 +66,7 @@
     - GETS (Get string)
 - [R] `PUT <reg1>` - `putchar(reg1)`
     - PUTD (Put decimal)
-    - PUTS (Put string) Esboço da arquitetura
+    - PUTS (Put string) 
 
 
 

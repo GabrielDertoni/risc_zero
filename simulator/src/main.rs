@@ -1,14 +1,13 @@
 #![allow(dead_code)]
 
 mod reg_bank;
-mod utils;
+mod os;
 
 use architecture_utils::*;
 use reg_bank::RegBank;
-use utils::*;
+use os::*;
 
-// Valor temporário
-const MEMORY_SIZE: usize = 1000;
+const MEMORY_SIZE: usize = 65_536;
 
 fn main() {
     let mut reg_bank = RegBank::new();
@@ -112,8 +111,20 @@ fn main() {
                 program_counter = reg_bank[reg1];
             }
         }
-        Instruction::Jmp(_) => todo!(),
-        Instruction::Int => todo!(),
+        Instruction::Jmp(reg1) => program_counter = reg_bank[reg1],
+
+        // Operational system instructions
+        Instruction::Int => {
+            match reg_bank[Reg::ACC] {
+                READ_INTEGER  => read_integer(&mut reg_bank),
+                READ_CHAR     => read_character(&mut reg_bank),
+                PRINT_DECIMAL => println!("{}", reg_bank[Reg::ACC]),
+                PRINT_BINARY  => println!("{:b}", reg_bank[Reg::ACC]),
+                PRINT_HEX     => println!("{:x}", reg_bank[Reg::ACC]),
+                PRINT_CHAR    => println!("{}", reg_bank[Reg::ACC].to_le_bytes()[1] as char),
+                n             => panic!("Unexpected system call: {}.", n),
+            }
+        }
         Instruction::Hlt => todo!(),
     };
 }

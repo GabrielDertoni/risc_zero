@@ -1,6 +1,7 @@
-use std::ops::{ Index, IndexMut };
-
 use crate::reg::{ REG_COUNT, Reg };
+
+use std::ops::Index;
+use std::ops::IndexMut;
 
 pub struct RegBank {
     reg_list: [i16; REG_COUNT],
