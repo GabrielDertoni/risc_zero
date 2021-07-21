@@ -119,7 +119,7 @@ spanned! {
     }
 
     pub struct Num<'a> {
-        pub val: i16,
+        pub val: i32,
     }
 
     pub struct Str<'a> {

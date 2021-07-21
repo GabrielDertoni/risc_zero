@@ -116,11 +116,11 @@ fn parse_num(pair: Pair<Rule>) -> Result<Num> {
     let s = pair.as_str();
 
     let res = match s.get(0..2) {
-        Some("0b") => i16::from_str_radix(&s[2..], 2),
-        Some("0o") => i16::from_str_radix(&s[2..], 8),
-        Some("0d") => i16::from_str_radix(&s[2..], 10),
-        Some("0x") => i16::from_str_radix(&s[2..], 16),
-        _          => i16::from_str_radix(s, 10),
+        Some("0b") => i32::from_str_radix(&s[2..], 2),
+        Some("0o") => i32::from_str_radix(&s[2..], 8),
+        Some("0d") => i32::from_str_radix(&s[2..], 10),
+        Some("0x") => i32::from_str_radix(&s[2..], 16),
+        _          => i32::from_str_radix(s, 10),
     };
 
     match res {
@@ -287,16 +287,16 @@ fn parse_macro_arg(pair: Pair<Rule>) -> Result<MacroArg> {
 
 fn parse_expr<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<Expr<'a>> {
 
-    fn try_to_num(expr: &Expr) -> Option<i16> {
+    fn try_to_num(expr: &Expr) -> Option<i32> {
         match expr {
             Expr::Lbl(..) |
             Expr::Bin(..)  => None,
-            Expr::Chr(chr) => Some(chr.chr as i16),
+            Expr::Chr(chr) => Some(chr.chr as i32),
             Expr::Num(num) => Some(num.val),
         }
     }
 
-    fn compute_op(a: i16, op: &str, b: i16) -> i16 {
+    fn compute_op(a: i32, op: &str, b: i32) -> i32 {
         match op {
             "+"  => a + b,
             "-"  => a - b,
@@ -331,7 +331,7 @@ fn parse_expr<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<
                     error!("expected an immediate value", span)
                 }
             }
-            rule        => unreachable!("unexpected rule {:?}", rule),
+            rule => unreachable!("unexpected rule {:?}", rule),
         }
     }
 
