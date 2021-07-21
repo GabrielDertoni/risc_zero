@@ -7,13 +7,8 @@ use pest::Span;
 
 use crate::ast;
 use crate::parser::{ Context, parse_stmts };
-use crate::error::Error;
+use crate::error::Result;
 use crate::error;
-
-
-const EMPTY_DEFAULT: i32 = -1;
-
-type Result<T> = std::result::Result<T, Error>;
 
 type Addr = usize;
 type Word = u16;
@@ -28,44 +23,7 @@ impl<'a> LabelDef<'a> {
     fn new(pos: Addr, span: Span<'a>) -> LabelDef<'a> {
         LabelDef { addr: pos, span: Some(span) }
     }
-
-    fn auto(pos: Addr) -> LabelDef<'a> {
-        LabelDef { addr: pos, span: None }
-    }
 }
-
-struct LabelRef<'a> {
-    // Where the reference was on the tape.
-    pos: Addr,
-    parent: Option<ast::Label<'a>>,
-    expr: ast::Expr<'a>,
-}
-
-impl<'a> LabelRef<'a> {
-    #[inline]
-    fn new(pos: Addr, parent: Option<ast::Label<'a>>, expr: ast::Expr<'a>) -> LabelRef<'a> {
-        LabelRef { pos, parent, expr }
-    }
-
-    #[inline]
-    fn span(&self) -> Span<'a> {
-        self.expr.span()
-    }
-}
-
-impl<'a> std::fmt::Display for LabelRef<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let (line, col) = self.span().start_pos().line_col();
-        write!(f, "{} at {}:{} -> {}", self.span().as_str(), line, col, self.pos)
-    }
-}
-
-impl<'a> std::fmt::Debug for LabelRef<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self, f)
-    }
-}
-
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 struct LabelName<'a> {
@@ -86,7 +44,6 @@ pub struct Assembler<'a, W> {
     labels: HashMap<LabelName<'a>, LabelDef<'a>>,
     defines: HashMap<&'a str, ast::Lit<'a>>,
     macros: HashMap<&'a str, ast::Macro<'a>>,
-    macro_count: usize,
     macro_ctx: Context<'a>,
 }
 
@@ -102,7 +59,6 @@ where
             labels: HashMap::new(),
             defines: HashMap::new(),
             macros: HashMap::new(),
-            macro_count: 0,
             macro_ctx: Context::new(),
         }
     }
@@ -111,11 +67,6 @@ where
     fn get_addr(&mut self) -> usize {
         self.writer.seek(SeekFrom::End(0))
             .expect("seek to the end to always be successfull") as usize
-    }
-
-    #[inline]
-    fn get_cur_bit(&mut self) -> usize {
-        self.get_addr() * 8
     }
 
     fn emit_buf(&mut self, buf: &[u8]) -> Result<usize> {

@@ -15,6 +15,7 @@ macro_rules! spanned {
 
         impl<$life $(, $ts)*> $name<$life $(, $ts)*> {
             #[inline]
+            #[allow(dead_code)]
             pub fn new($($member : $ty,)* span: Span<$life>) -> $name<$life $(, $ts)*> {
                 $name {
                     $($member,)*
@@ -23,6 +24,7 @@ macro_rules! spanned {
             }
 
             #[inline]
+            #[allow(dead_code)]
             pub fn span(&self) -> Span<$life> {
                 self.span.clone()
             }
@@ -38,6 +40,7 @@ macro_rules! impl_span {
     (struct $name:ident<$life:lifetime $(, $ts:tt)*> => $expr:expr; $($rest:tt)*) => {
         impl<$life $(, $ts)*> $name<$life $(, $ts)*> {
             #[inline]
+            #[allow(dead_code)]
             pub fn span(&self) -> Span<$life> {
                 $expr
             }
@@ -49,6 +52,7 @@ macro_rules! impl_span {
     (enum $name:ident<$life:lifetime $(, $ts:tt)*> => match { $($pat:pat => $expr:expr,)+ } $($rest:tt)*) => {
         impl<$life $(, $ts)*> $name<$life $(, $ts)*> {
             #[inline]
+            #[allow(dead_code)]
             pub fn span(&self) -> Span<$life> {
                 use $name::*;
 
@@ -61,51 +65,6 @@ macro_rules! impl_span {
         }
 
         impl_span! { $($rest)* }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
-pub enum Op {
-    Noop,
-    Add,
-    Mult,
-    Mov,
-    Div,
-    Cle,
-    Clt,
-    Addi,
-    Lui,
-    Jmp,
-    Beq,
-    Bne,
-    Ldb,
-    Stb,
-    Ldw,
-    Stw,
-}
-
-impl Op {
-    pub fn nargs(&self) -> usize {
-        use Op::*;
-
-        match self {
-            Noop => 0,
-            Add  => 2,
-            Mult => 2,
-            Mov  => 2,
-            Div  => 2,
-            Cle  => 2,
-            Clt  => 2,
-            Addi => 2,
-            Lui  => 2,
-            Jmp  => 2,
-            Beq  => 2,
-            Bne  => 2,
-            Ldb  => 2,
-            Stb  => 2,
-            Ldw  => 2,
-            Stw  => 2,
-        }
     }
 }
 
@@ -129,14 +88,6 @@ pub enum Stmt<'a> {
 impl<'a> Stmt<'a> {
     pub fn as_label(&self) -> Option<&Label<'a>> {
         if let Self::Label(v) = self {
-            Some(v)
-        } else {
-            None
-        }
-    }
-
-    pub fn as_inst(&self) -> Option<&Inst<'a>> {
-        if let Self::Inst(v) = self {
             Some(v)
         } else {
             None
@@ -228,21 +179,6 @@ impl<'a> Label<'a> {
     pub fn span(&self) -> Span<'a> {
         self.ident().span()
     }
-
-    #[inline]
-    pub fn is_local(&self) -> bool {
-        matches!(self, Label::Local(..))
-    }
-
-    #[inline]
-    pub fn is_global(&self) -> bool {
-        matches!(self, Label::Global(..))
-    }
-
-    #[inline]
-    pub fn is_expanded(&self) -> bool {
-        matches!(self, Label::Macro(..))
-    }
 }
 
 // TODO: remove this type
@@ -265,24 +201,6 @@ pub enum Expr<'a> {
     Lbl(Label<'a>),
     Bin(BinExpr<'a>),
     Chr(Chr<'a>),
-}
-
-impl<'a> Expr<'a> {
-    pub fn as_num(&self) -> Option<&Num<'a>> {
-        if let Self::Num(v) = self {
-            Some(v)
-        } else {
-            None
-        }
-    }
-
-    pub fn as_chr(&self) -> Option<&Chr<'a>> {
-        if let Self::Chr(v) = self {
-            Some(v)
-        } else {
-            None
-        }
-    }
 }
 
 impl_span! {
@@ -454,33 +372,5 @@ impl<'a> Display for Expr<'a> {
         }
 
         write_prec(f, self, 0)
-    }
-}
-
-
-impl Display for Op {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        use Op::*;
-
-        let name = match self {
-            Noop => "noop",
-            Add  => "add",
-            Mult => "mult",
-            Mov  => "mov",
-            Div  => "div",
-            Cle  => "cle",
-            Clt  => "clt",
-            Addi => "addi",
-            Lui  => "lui",
-            Jmp  => "jmp",
-            Beq  => "beq",
-            Bne  => "bne",
-            Ldb  => "ldb",
-            Stb  => "stb",
-            Ldw  => "ldw",
-            Stw  => "stw",
-        };
-
-        write!(f, "{}", name)
     }
 }
