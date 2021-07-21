@@ -103,6 +103,8 @@ impl Instruction {
                     _ => unreachable!(),
                 }
             },
+
+            // Operational system related instructions
             10 => Int,
             11 => Hlt,
             n => return Err(
