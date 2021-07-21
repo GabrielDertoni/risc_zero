@@ -78,10 +78,10 @@ pub struct Prog<'a> {
 pub enum Stmt<'a> {
     Label(Label<'a>),
     Inst(Inst<'a>),
-    Lit(Lit<'a>),
+    Expr(Expr<'a>),
     Macro(Macro<'a>),
     Include(Str<'a>),
-    Define(Ident<'a>, Lit<'a>),
+    Define(Ident<'a>, Expr<'a>),
     Str(Str<'a>),
 }
 
@@ -181,18 +181,11 @@ impl<'a> Label<'a> {
     }
 }
 
-// TODO: remove this type
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Lit<'a> {
-    Expr(Expr<'a>),
-    Str(Str<'a>),
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Arg<'a> {
-    Imm(Lit<'a>),
+    Imm(Expr<'a>),
     Reg(Reg<'a>),
-    RegImm(Reg<'a>, Lit<'a>),
+    RegImm(Reg<'a>, Expr<'a>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -208,11 +201,6 @@ impl_span! {
         Imm(lit) => lit.span(),
         Reg(reg) => reg.span(),
         RegImm(imm, _) => imm.span(),
-    }
-
-    enum Lit<'a> => match {
-        Expr(expr) => expr.span(),
-        Str(s)     => s.span(),
     }
 
     enum Expr<'a> => match {
@@ -284,7 +272,7 @@ impl<'a> Display for Stmt<'a> {
         match self {
             Stmt::Label(lbl)        => write!(f, "{}:", lbl),
             Stmt::Inst(inst)        => Display::fmt(inst, f),
-            Stmt::Lit(lit)          => Display::fmt(lit, f),
+            Stmt::Expr(expr)        => Display::fmt(expr, f),
             Stmt::Macro(mac)        => Display::fmt(mac, f),
             Stmt::Include(s)        => write!(f, "@include {}", s),
             Stmt::Define(name, def) => write!(f, "@define {} {}", name, def),
@@ -333,15 +321,6 @@ impl<'a> Display for Num<'a> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         Display::fmt(&self.val, f)
-    }
-}
-
-impl<'a> Display for Lit<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Lit::Expr(expr) => write!(f, "{}", expr),
-            Lit::Str(s)     => write!(f, "\"{}\"", s.content),
-        }
     }
 }
 

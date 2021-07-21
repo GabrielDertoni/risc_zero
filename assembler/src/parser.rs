@@ -129,17 +129,6 @@ fn parse_num(pair: Pair<Rule>) -> Result<Num> {
     }
 }
 
-fn parse_lit<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<Lit<'a>> {
-    let lit = fst!(pair.into_inner());
-
-    let parsed = match lit.as_rule() {
-        Rule::expr      => Lit::Expr(parse_expr(lit, cx)?),
-        _               => unreachable!(),
-    };
-
-    Ok(parsed)
-}
-
 fn parse_reg(pair: Pair<Rule>) -> Result<Reg> {
     use architecture_utils::Reg::*;
 
@@ -195,18 +184,13 @@ fn parse_arg<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<A
         },
         Rule::arg_imm     => {
             let arg_imm = fst!(arg.into_inner());
-
-            match arg_imm.as_rule() {
-                Rule::lit       => Arg::Imm(parse_lit(arg_imm, cx)?),
-                Rule::macro_arg => get_macro_arg(arg_imm, cx)?,
-                _               => unreachable!(),
-            }
+            Arg::Imm(parse_expr(arg_imm, cx)?)
         },
         Rule::arg_reg_imm => {
             let [arg_reg, arg_imm] = arg.into_inner().to_array().unwrap();
             let reg = fst!(arg_reg.into_inner());
             let imm = fst!(arg_imm.into_inner());
-            Arg::RegImm(parse_reg(reg)?, parse_lit(imm, cx)?)
+            Arg::RegImm(parse_reg(reg)?, parse_expr(imm, cx)?)
         },
         _ => unreachable!(),
     };
@@ -256,7 +240,7 @@ fn parse_stmt<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<
         },
         Rule::define  => {
             let [ident, lit] = take_n!(stmt.into_inner());
-            Stmt::Define(ident.into(), parse_lit(lit, cx)?)
+            Stmt::Define(ident.into(), parse_expr(lit, cx)?)
         },
         Rule::macro_rule => {
             let [ident, args, stmts] = take_n!(stmt.into_inner());
@@ -274,7 +258,7 @@ fn parse_stmt<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<
         },
         Rule::label  => Stmt::Label(parse_label(stmt)?),
         Rule::inst   => Stmt::Inst(parse_inst(stmt, cx)?),
-        Rule::lit    => Stmt::Lit(parse_lit(stmt, cx)?),
+        Rule::expr   => Stmt::Expr(parse_expr(stmt, cx)?),
         Rule::str    => Stmt::Str(parse_str(stmt)?),
         r            => unreachable!("unexpected rule {:?}", r),
     };
@@ -341,7 +325,7 @@ fn parse_expr<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<
             Rule::macro_arg => {
                 let arg = get_macro_arg(atom, cx)?;
 
-                if let Arg::Imm(Lit::Expr(expr)) = arg {
+                if let Arg::Imm(expr) = arg {
                     Ok(expr)
                 } else {
                     error!("expected an immediate value", span)
@@ -382,7 +366,6 @@ fn parse_expr<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<
 
         Ok(lhs)
     }
-
 
     let mut tokens = pair.into_inner();
     parse_precedence(&mut tokens, 0, cx)

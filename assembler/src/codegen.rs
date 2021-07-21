@@ -42,7 +42,7 @@ pub struct Assembler<'a, W> {
     expand: bool,
     parent: Option<ast::Ident<'a>>,
     labels: HashMap<LabelName<'a>, LabelDef<'a>>,
-    defines: HashMap<&'a str, ast::Lit<'a>>,
+    defines: HashMap<&'a str, ast::Expr<'a>>,
     macros: HashMap<&'a str, ast::Macro<'a>>,
     macro_ctx: Context<'a>,
 }
@@ -154,14 +154,14 @@ where
                 self.assemble_inst(inst)?;
             }
 
-            Lit(lit) => {
+            Expr(expr) => {
                 if self.expand {
                     if self.labels.len() > 0 {
                         print!("\t");
                     }
-                    println!("{}", lit);
+                    println!("{}", expr);
                 }
-                self.assemble_lit_stmt(lit)?;
+                self.assemble_expr_stmt(expr)?;
             }
 
             Str(s) => {
@@ -188,23 +188,13 @@ where
         Ok(())
     }
 
-    fn assemble_lit_stmt(&mut self, lit: &ast::Lit<'a>) -> Result<()> {
-        use ast::Lit;
+    fn assemble_expr_stmt(&mut self, expr: &ast::Expr<'a>) -> Result<()> {
+        let val = self.assemble_expr(expr)?;
 
-        match lit {
-            Lit::Expr(expr)   => {
-                let val = self.assemble_expr(expr)?;
-
-                if val <= u16::MAX as i32 && val >= i8::MIN as i32 {
-                    self.emit_word(val as u16)?;
-                } else {
-                    return error!("literal must fit in one byte", expr.span());
-                }
-            }
-
-            Lit::Str(_)       => {
-                return error!("string not allowed here", lit.span());
-            },
+        if val <= u16::MAX as i32 && val >= i16::MIN as i32 {
+            self.emit_word(val as u16)?;
+        } else {
+            return error!("literal must fit in one word", expr.span());
         }
 
         Ok(())
@@ -381,20 +371,13 @@ where
         Ok(())
     }
 
-    fn assemble_immediate(&mut self, lit: &ast::Lit<'a>) -> Result<u8> {
-        use ast::Lit;
+    fn assemble_immediate(&mut self, expr: &ast::Expr<'a>) -> Result<u8> {
+        let val = self.assemble_expr(expr)?;
 
-        match lit {
-            Lit::Expr(expr) => {
-                let val = self.assemble_expr(expr)?;
-                if val <= u8::MAX as i32 && val >= i8::MIN as i32 {
-                    Ok(val as u8)
-                } else {
-                    error!("literal must fit in one byte", expr.span())
-                }
-            },
-            Lit::Str(_) =>
-                return error!("literal string not allowed in argument position", lit.span()),
+        if val <= u8::MAX as i32 && val >= i8::MIN as i32 {
+            Ok(val as u8)
+        } else {
+            error!("literal must fit in one byte", expr.span())
         }
     }
 
