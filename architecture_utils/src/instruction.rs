@@ -79,7 +79,7 @@ impl Instruction {
             // I-type instructions: Immediate value related instructions
             3 | 4 | 5 => {
                 let reg = Reg::from_addr(((code >> 8) & 0xf) as u8);
-                let immediate: u8 = (code & 0xf) as u8;
+                let immediate: u8 = (code & 0xff) as u8;
 
                 match opcode {
                     3 => Addi(reg, immediate),
@@ -93,7 +93,7 @@ impl Instruction {
             6 | 7 | 8 | 9 => {
                 let reg1 = Reg::from_addr(((code >> 8) & 0xf) as u8);
                 let reg2 = Reg::from_addr(((code >> 4) & 0xf) as u8);
-                let immediate = (code & 0xf) as u8;
+                let immediate = (code & 0b11111) as u8;
                 
                 match opcode {
                     6 => Ldb(reg1, reg2, immediate),
