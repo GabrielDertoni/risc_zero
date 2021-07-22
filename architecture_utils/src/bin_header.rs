@@ -4,8 +4,8 @@ use std::str;
 pub struct FileHeader {
     magic_number: u16,
     signature: u32,
-    data_seg_start: u16,
-    data_seg_end: u16,
+    pub data_seg_start: u16,
+    pub data_seg_end: u16,
 }
 
 const BIN_MAGIC_NUMBER: u16 = 0x5a;
