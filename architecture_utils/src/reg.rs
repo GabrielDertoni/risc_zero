@@ -4,14 +4,22 @@ pub const REG_COUNT: usize = 16;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Reg {
-    TMP,
-    HI,
-    LO,
-    SP,
-    ADR,
-    ACC,
-    FL,
-    R1, R2, R3, R4, R5, R6, R7, R8, R9,
+    TMP =  0,
+    HI  =  1,
+    LO  =  2,
+    SP  =  3,
+    ADR =  4,
+    ACC =  5,
+    FL  =  6,
+    R1  =  7,
+    R2  =  8,
+    R3  =  9,
+    R4  = 10,
+    R5  = 11,
+    R6  = 12,
+    R7  = 13,
+    R8  = 14,
+    R9  = 15,
 }
 
 impl Reg {
@@ -19,16 +27,16 @@ impl Reg {
         use Reg::*;
 
         match addr {
-            0  => TMP,
-            1  => HI,
-            2  => LO,
-            3  => SP,
-            4  => ADR,
-            5  => ACC,
-            6  => FL,
-            7  => R1,
-            8  => R2,
-            9  => R3,
+             0 => TMP,
+             1 => HI,
+             2 => LO,
+             3 => SP,
+             4 => ADR,
+             5 => ACC,
+             6 => FL,
+             7 => R1,
+             8 => R2,
+             9 => R3,
             10 => R4,
             11 => R5,
             12 => R6,
