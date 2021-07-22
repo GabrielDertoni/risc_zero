@@ -31,7 +31,7 @@ main:
     ; r1 is the char pointer
     la $r1, msg
 .loop:
-    ldb $r2, $r1(0)
+    ldb $r2, $r1(2 + 2)
 
     andi $acc, 0
     ceq $acc, $r2
@@ -46,6 +46,8 @@ main:
 .loop_end:
 
     hlt
+
+.data
 
 msg: "Hello, World"
 

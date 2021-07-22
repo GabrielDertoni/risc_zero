@@ -26,13 +26,11 @@ fn main() -> std::io::Result<()> {
         (about: "A assembler for the ZASM assembly language")
         (@arg SOURCE: +required "The ZASM source file to compile")
         (@arg output: -o --output +takes_value "File to output the assembled binary")
-        // (@arg expand: -E --expand "Compile and also print the desugared code")
     ).get_matches();
 
     // Ok, SOURCE is required.
     let src_file = matches.value_of("SOURCE").unwrap();
     let out = matches.value_of("output").unwrap_or("a.out");
-    // let expand = matches.is_present("expand");
 
     let source = fs::read_to_string(src_file)?;
 
@@ -40,7 +38,7 @@ fn main() -> std::io::Result<()> {
         Err(e)   => eprintln!("{}", e),
         Ok(prog) => {
             let file = fs::File::create(out)?;
-            let mut assembler = Assembler::new(file, false);
+            let mut assembler = Assembler::new(file);
 
             if let Err(e) = assembler.assemble(&prog.stmts) {
                 eprintln!("{}", e);

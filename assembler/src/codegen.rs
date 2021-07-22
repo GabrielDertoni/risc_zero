@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::io::{ Seek, SeekFrom, Write };
 
 use pest::Span;
+use architecture_utils as risc0;
 
 use crate::ast;
 use crate::parser::{ Context, parse_stmts };
@@ -39,27 +40,31 @@ impl<'a> LabelName<'a> {
 
 pub struct Assembler<'a, W> {
     writer: W,
-    expand: bool,
     parent: Option<ast::Ident<'a>>,
     labels: HashMap<LabelName<'a>, LabelDef<'a>>,
     defines: HashMap<&'a str, ast::Expr<'a>>,
     macros: HashMap<&'a str, ast::Macro<'a>>,
     macro_ctx: Context<'a>,
+    in_text: bool,
+    inst_count: u16,
+    data_count: u16,
 }
 
 impl<'a, W> Assembler<'a, W>
 where
     W: Write + Seek,
 {
-    pub fn new(writer: W, expand: bool) -> Assembler<'a, W> {
+    pub fn new(writer: W) -> Assembler<'a, W> {
         Assembler {
             writer,
-            expand,
             parent: None,
             labels: HashMap::new(),
             defines: HashMap::new(),
             macros: HashMap::new(),
             macro_ctx: Context::new(),
+            in_text: true,
+            inst_count: 0,
+            data_count: 0,
         }
     }
 
@@ -117,9 +122,15 @@ where
     }
 
     pub fn assemble(&mut self, stmts: &[ast::Stmt<'a>]) -> Result<()> {
+        self.writer.seek(SeekFrom::Start(risc0::FileHeader::SIZE))?;
+
         self.find_labels(stmts)?;
         self.parent = None;
         self.assemble_stmts(stmts)?;
+
+        self.writer.seek(SeekFrom::Start(0))?;
+        let header = risc0::FileHeader::new(self.inst_count * 2, self.data_count);
+        self.writer.write(&header.encode())?;
 
         Ok(())
     }
@@ -143,6 +154,19 @@ where
         use ast::{ Stmt::*, Label };
 
         match stmt {
+            Marker(ast::Marker::DotText(span)) => {
+                if !self.in_text {
+                    return error!(
+                        "unexpected .text in data segment",
+                        span.clone()
+                    );
+                }
+            }
+
+            Marker(ast::Marker::DotData(..)) => {
+                self.in_text = false;
+            }
+
             // Assumes the label has already been accounted for in the first pass.
             Label(Label::Global(global)) => {
                 self.parent.replace(global.clone());
@@ -151,21 +175,35 @@ where
             Label(..) => (),
 
             Inst(inst) => {
+                if !self.in_text {
+                    return error!(
+                        "unexpected instruction in .data segment",
+                        inst.span()
+                    );
+                }
                 self.assemble_inst(inst)?;
             }
 
             Expr(expr) => {
-                if self.expand {
-                    if self.labels.len() > 0 {
-                        print!("\t");
-                    }
-                    println!("{}", expr);
+                if self.in_text {
+                    return error!(
+                        "unexpected expression in .text segment",
+                        expr.span()
+                    );
                 }
+                // Emits a word
+                self.data_count += 2;
                 self.assemble_expr_stmt(expr)?;
             }
 
             Str(s) => {
-                self.emit_string(s.content, s.span())?;
+                if self.in_text {
+                    return error!(
+                        "unexpected string in .text segment",
+                        s.span()
+                    );
+                }
+                self.data_count += self.emit_string(s.content, s.span())? as u16;
             }
 
             Define(name, lit) => {
@@ -206,6 +244,8 @@ where
 
         let span = inst.span();
         let inst_name = inst.ident.content;
+
+        self.inst_count += 1;
 
         match inst_name {
             // R - type instructions
@@ -347,6 +387,9 @@ where
             }
 
             mac if self.macros.contains_key(mac) => {
+                // We have overcounted the number of instructions because one of them was actually
+                // a macro.
+                self.inst_count -= 1;
                 self.macro_ctx.macro_depth += 1;
 
                 let mac = self.macros.get(mac).unwrap();
@@ -512,7 +555,7 @@ mod test {
         let prog = parse_zasm(prog, None).unwrap();
 
         let mut assembled: Vec<u8> = Vec::new();
-        let mut assembler = Assembler::new(Cursor::new(&mut assembled), false);
+        let mut assembler = Assembler::new(Cursor::new(&mut assembled));
 
         assembler.assemble(prog.stmts.as_slice())
             .unwrap_or_else(|err| panic!("{}", err));
@@ -538,7 +581,7 @@ mod test {
             .unwrap_or_else(|err| panic!("{}", err));
 
         let mut assembled: Vec<u8> = Vec::new();
-        let mut assembler = Assembler::new(Cursor::new(&mut assembled), false);
+        let mut assembler = Assembler::new(Cursor::new(&mut assembled));
 
         assembler.assemble(prog.stmts.as_slice())
             .unwrap_or_else(|err| panic!("{}", err));

@@ -12,6 +12,8 @@ const BIN_MAGIC_NUMBER: u16 = 0x5a;
 const BIN_SIGNATURE: &'static str = "ZERO";
 
 impl FileHeader {
+    pub const SIZE: u64 = 10;
+
     pub fn new(data_seg_curr_start: u16, data_seg_curr_end: u16) -> Self {
         let encoded_string = BIN_SIGNATURE.as_bytes()
             .try_into()

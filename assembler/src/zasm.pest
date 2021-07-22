@@ -5,6 +5,7 @@ stmts = { (stmt | NEWLINE)* }
 stmt = { include
        | define
        | macro_rule
+       | marker
        | label
        | inst
        | ("(" ~  expr ~ ")")
@@ -17,6 +18,10 @@ macro_rule = { "@macro" ~ ident ~ macro_args ~ macro_body }
     macro_args = { macro_arg ~ ("," ~ macro_arg)* }
     macro_arg = ${ ("%" | "#") ~ ident }
     macro_body = { "{" ~ (stmt | NEWLINE)* ~ "}" }
+
+marker = { marker_data | marker_text }
+    marker_data = { ".data" }
+    marker_text = { ".text" }
 
 label = ${ lbl_name ~ ":" }
 

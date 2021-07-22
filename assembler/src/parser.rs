@@ -222,6 +222,17 @@ fn parse_inst<'a>(pair: Pair<'a, Rule>, mut cx: Option<&mut Context<'a>>) -> Res
     Ok(Inst { ident, args, span })
 }
 
+fn parse_marker<'a>(pair: Pair<'a, Rule>) -> Result<Marker<'a>> {
+    let marker = fst!(pair.into_inner());
+    let span = marker.as_span();
+
+    match marker.as_rule() {
+        Rule::marker_data => Ok(Marker::DotData(span)),
+        Rule::marker_text => Ok(Marker::DotText(span)),
+        _                 => unreachable!(),
+    }
+}
+
 #[inline]
 pub fn parse_stmts<'a>(pairs: Pairs<'a, Rule>, mut cx: Option<&mut Context<'a>>) -> Result<Vec<Stmt<'a>>> {
     pairs
@@ -237,11 +248,15 @@ fn parse_stmt<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<
         Rule::include => {
             let s = fst!(stmt.into_inner());
             Stmt::Include(parse_str(s)?)
-        },
+        }
+
         Rule::define  => {
             let [ident, lit] = take_n!(stmt.into_inner());
             Stmt::Define(ident.into(), parse_expr(lit, cx)?)
-        },
+        }
+
+        Rule::marker => Stmt::Marker(parse_marker(stmt)?),
+
         Rule::macro_rule => {
             let [ident, args, stmts] = take_n!(stmt.into_inner());
 
@@ -255,7 +270,8 @@ fn parse_stmt<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<
                 contents: stmts.into_inner(),
                 span,
             })
-        },
+        }
+
         Rule::label  => Stmt::Label(parse_label(stmt)?),
         Rule::inst   => Stmt::Inst(parse_inst(stmt, cx)?),
         Rule::expr   => Stmt::Expr(parse_expr(stmt, cx)?),

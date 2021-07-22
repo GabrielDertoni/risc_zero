@@ -80,6 +80,7 @@ pub enum Stmt<'a> {
     Inst(Inst<'a>),
     Expr(Expr<'a>),
     Macro(Macro<'a>),
+    Marker(Marker<'a>),
     Include(Str<'a>),
     Define(Ident<'a>, Expr<'a>),
     Str(Str<'a>),
@@ -92,6 +93,65 @@ impl<'a> Stmt<'a> {
         } else {
             None
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Arg<'a> {
+    Imm(Expr<'a>),
+    Reg(Reg<'a>),
+    RegImm(Reg<'a>, Expr<'a>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Expr<'a> {
+    Num(Num<'a>),
+    Lbl(Label<'a>),
+    Bin(BinExpr<'a>),
+    Chr(Chr<'a>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Label<'a> {
+    Local(Ident<'a>),
+    Global(Ident<'a>),
+    Macro(Ident<'a>, usize),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Marker<'a> {
+    DotData(Span<'a>),
+    DotText(Span<'a>),
+}
+
+impl<'a> Label<'a> {
+    #[inline]
+    pub fn local(ident: Ident<'a>) -> Label<'a> {
+        Label::Local(ident)
+    }
+
+    #[inline]
+    pub fn global(ident: Ident<'a>) -> Label<'a> {
+        Label::Global(ident)
+    }
+
+    #[inline]
+    pub fn expanded(ident: Ident<'a>, id: usize) -> Label<'a> {
+        Label::Macro(ident, id)
+    }
+
+    #[inline]
+    pub fn ident(&self) -> &Ident<'a> {
+        match self {
+            Label::Local(ident)  |
+            Label::Global(ident) |
+            Label::Macro(ident, ..) => ident,
+        }
+    }
+
+    #[inline]
+    pub fn span(&self) -> Span<'a> {
+        self.ident().span()
     }
 }
 
@@ -140,60 +200,6 @@ spanned! {
         pub operator: Ident<'a>,
         pub rhs: Box<Expr<'a>>,
     }
-}
-
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Label<'a> {
-    Local(Ident<'a>),
-    Global(Ident<'a>),
-    Macro(Ident<'a>, usize),
-}
-
-impl<'a> Label<'a> {
-    #[inline]
-    pub fn local(ident: Ident<'a>) -> Label<'a> {
-        Label::Local(ident)
-    }
-
-    #[inline]
-    pub fn global(ident: Ident<'a>) -> Label<'a> {
-        Label::Global(ident)
-    }
-
-    #[inline]
-    pub fn expanded(ident: Ident<'a>, id: usize) -> Label<'a> {
-        Label::Macro(ident, id)
-    }
-
-    #[inline]
-    pub fn ident(&self) -> &Ident<'a> {
-        match self {
-            Label::Local(ident)  |
-            Label::Global(ident) |
-            Label::Macro(ident, ..) => ident,
-        }
-    }
-
-    #[inline]
-    pub fn span(&self) -> Span<'a> {
-        self.ident().span()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Arg<'a> {
-    Imm(Expr<'a>),
-    Reg(Reg<'a>),
-    RegImm(Reg<'a>, Expr<'a>),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Expr<'a> {
-    Num(Num<'a>),
-    Lbl(Label<'a>),
-    Bin(BinExpr<'a>),
-    Chr(Chr<'a>),
 }
 
 impl_span! {
@@ -276,6 +282,7 @@ impl<'a> Display for Stmt<'a> {
             Stmt::Macro(mac)        => Display::fmt(mac, f),
             Stmt::Include(s)        => write!(f, "@include {}", s),
             Stmt::Define(name, def) => write!(f, "@define {} {}", name, def),
+            Stmt::Marker(marker)    => Display::fmt(marker, f),
             Stmt::Str(s)            => write!(f, "{}", s),
         }
     }
@@ -351,5 +358,14 @@ impl<'a> Display for Expr<'a> {
         }
 
         write_prec(f, self, 0)
+    }
+}
+
+impl<'a> Display for Marker<'a> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            Marker::DotData(_) => write!(f, ".data"),
+            Marker::DotText(_) => write!(f, ".text"),
+        }
     }
 }

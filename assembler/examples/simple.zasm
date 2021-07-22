@@ -6,7 +6,9 @@
 
 main:
     li $r1, msg
+    li $r1, 0xffff
     hlt
 
+.data
 
-msg: "Hello, World"
+msg: "Hello, World\0"
