@@ -122,14 +122,18 @@ where
     }
 
     pub fn assemble(&mut self, stmts: &[ast::Stmt<'a>]) -> Result<()> {
-        self.writer.seek(SeekFrom::Start(risc0::FileHeader::SIZE))?;
+        // Write a bunch of zeros so that we can go past the header position
+        self.writer.write(&[0; risc0::FileHeader::SIZE as usize])?;
 
         self.find_labels(stmts)?;
         self.parent = None;
         self.assemble_stmts(stmts)?;
 
         self.writer.seek(SeekFrom::Start(0))?;
-        let header = risc0::FileHeader::new(self.inst_count * 2, self.data_count);
+
+        let data_start = (risc0::FileHeader::SIZE as u16) + self.inst_count * 2;
+        let data_end = data_start + self.data_count;
+        let header = risc0::FileHeader::new(data_start, data_end);
         self.writer.write(&header.encode())?;
 
         Ok(())

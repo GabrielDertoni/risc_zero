@@ -2,7 +2,7 @@
 use std::fs;
 use std::io::{ Read, Write };
 
-use architecture_utils::Instruction;
+use architecture_utils::{ FileHeader, Instruction };
 
 use clap::clap_app;
 
@@ -24,7 +24,9 @@ fn main() -> std::io::Result<()> {
 
     bin_file.read_to_end(&mut bin)?;
 
-    let instructions = Instruction::decode_iter(bin);
+    let header = FileHeader::decode(&bin).unwrap();
+    let text_segment = bin[FileHeader::SIZE as usize..header.data_seg_start as usize].iter().cloned();
+    let instructions = Instruction::decode_iter(text_segment);
 
     let mut out_file: Box<dyn Write> = if out == "-" {
         Box::new(std::io::stdout())
