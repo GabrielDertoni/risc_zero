@@ -68,12 +68,6 @@ where
         }
     }
 
-    #[inline]
-    fn get_addr(&mut self) -> usize {
-        self.writer.seek(SeekFrom::End(0))
-            .expect("seek to the end to always be successfull") as usize
-    }
-
     fn emit_buf(&mut self, buf: &[u8]) -> Result<usize> {
         self.writer.seek(SeekFrom::End(0))?;
         let n_written = self.writer.write(buf)?;
@@ -121,6 +115,21 @@ where
         Ok(i)
     }
 
+    // TODO: remove this or find a better way of doing it
+    fn count_string_bytes(&self, s: &str) -> usize {
+        let bytes = s.as_bytes();
+        let mut i = 0;
+
+        while i < bytes.len() {
+            if bytes[i] == b'\\' {
+                i += 1;
+            }
+            i += 1;
+        }
+
+        i
+    }
+
     pub fn assemble(&mut self, stmts: &[ast::Stmt<'a>]) -> Result<()> {
         // Write a bunch of zeros so that we can go past the header position
         self.writer.write(&[0; risc0::FileHeader::SIZE as usize])?;
@@ -140,11 +149,24 @@ where
     }
 
     fn find_labels(&mut self, stmts: &[ast::Stmt<'a>]) -> Result<()> {
-        stmts
-            .iter()
-            .filter_map(|stmt| stmt.as_label())
-            .map(|lbl| self.add_label(lbl))
-            .collect()
+        use ast::Stmt::*;
+
+        let mut offset = 0;
+
+        for stmt in stmts {
+            match stmt {
+                Marker(..)   |
+                Define(..)   |
+                Include(..)  |
+                Macro(..)    => (),
+                Label(label) => self.add_label_to(label, offset)?,
+                Inst(..)     |
+                Expr(..)     => offset += 2,
+                Str(s)       => offset += self.count_string_bytes(s.content),
+            }
+        }
+
+        Ok(())
     }
 
     #[inline]
@@ -496,12 +518,12 @@ where
         }
     }
 
-    fn add_label(&mut self, lbl: &ast::Label<'a>) -> Result<()> {
+    fn add_label_to(&mut self, lbl: &ast::Label<'a>, addr: usize) -> Result<()> {
         use ast::Label;
         use std::collections::hash_map::Entry::*;
 
-        let cur_pos = self.get_addr();
         let span = lbl.span();
+        println!("Adding label {} to addr {}", lbl, addr);
 
         let lbl_name = match lbl {
             Label::Local(local) => {
@@ -526,7 +548,7 @@ where
         match self.labels.entry(lbl_name) {
             Occupied(_)   => error!("label defined twice", lbl.span()),
             Vacant(entry) => {
-                entry.insert(LabelDef::new(cur_pos, lbl.span()));
+                entry.insert(LabelDef::new(addr, lbl.span()));
                 Ok(())
             },
         }
