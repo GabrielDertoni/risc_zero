@@ -52,9 +52,11 @@ fn main() {
             Err(error)  => panic!("{}", error),
         };
         program_counter += 2;
-//        writeln!(std::io::stdout(), "{}", curr_instruction);
-//        println!("r1: {}", reg_bank[Reg::R1]);
-//        println!("r2: {}", reg_bank[Reg::R2]);
+        // writeln!(std::io::stdout(), "{}", curr_instruction);
+        // println!("r1: {}", reg_bank[Reg::R1]);
+        // println!("r2: {}", reg_bank[Reg::R2]);
+        // let mut s = String::new();
+        // std::io::stdin().read_line(&mut s).unwrap();
         match curr_instruction {
             Instruction::Noop => (),
 
@@ -111,7 +113,7 @@ fn main() {
                 reg_bank.set_zero_flag(comparator_result);
             }
             Instruction::Clt(reg1, reg2) => {
-                let comparator_result: bool = reg_bank[reg1] != reg_bank[reg2];
+                let comparator_result: bool = reg_bank[reg1] < reg_bank[reg2];
                 reg_bank.set_zero_flag(comparator_result);
             }
 
@@ -140,12 +142,12 @@ fn main() {
 
             // Branch instructions
             Instruction::Beq(reg1) => {
-                if !reg_bank.get_zero_flag() {
+                if reg_bank.get_zero_flag() {
                     program_counter = reg_bank[reg1] as usize;
                 }
             }
             Instruction::Bne(reg1) => {
-                if reg_bank.get_zero_flag() {
+                if !reg_bank.get_zero_flag() {
                     program_counter = reg_bank[reg1] as usize;
                 }
             }
