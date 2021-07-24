@@ -2,12 +2,13 @@
 
 use std::collections::HashMap;
 use std::io::{ Seek, SeekFrom, Write };
+use std::cell::RefCell;
 
 use pest::Span;
 use architecture_utils as risc0;
 
 use crate::ast;
-use crate::parser::{ Context, parse_stmts };
+use crate::parser::{ Context, parse_src, parse_stmts };
 use crate::error::Result;
 use crate::error;
 
@@ -45,6 +46,7 @@ impl<'a> LabelName<'a> {
 
 pub struct Assembler<'a, W> {
     writer: W,
+    sources: Vec<Box<str>>,
     parent: Option<ast::Ident<'a>>,
     labels: HashMap<LabelName<'a>, LabelDef<'a>>,
     defines: HashMap<&'a str, ast::Expr<'a>>,
@@ -62,6 +64,7 @@ where
     pub fn new(writer: W) -> Assembler<'a, W> {
         Assembler {
             writer,
+            sources: Vec::new(),
             parent: None,
             labels: HashMap::new(),
             defines: HashMap::new(),
@@ -92,6 +95,7 @@ where
     fn emit_string(&mut self, s: &str, span: Span<'a>) -> Result<usize> {
         let bytes = s.as_bytes();
         let mut i = 0;
+        let mut n_bytes = 0;
 
         while i < bytes.len() {
             let byte = if bytes[i] == b'\\' {
@@ -114,35 +118,52 @@ where
             };
 
             self.emit_byte(byte)?;
-            i += 1
+            i += 1;
+            n_bytes += 1;
         }
 
-        Ok(i)
+        Ok(n_bytes)
     }
 
     // TODO: remove this or find a better way of doing it
     fn count_string_bytes(&self, s: &str) -> usize {
         let bytes = s.as_bytes();
         let mut i = 0;
+        let mut n_bytes = 0;
 
         while i < bytes.len() {
             if bytes[i] == b'\\' {
                 i += 1;
             }
             i += 1;
+            n_bytes += 1;
         }
 
-        i
+        n_bytes
     }
 
-    pub fn assemble(&mut self, stmts: &[ast::Stmt<'a>]) -> Result<()> {
+    fn add_src(&mut self, src_file: &str) -> Result<&'a str> {
+        self.sources.push(std::fs::read_to_string(src_file)?.into_boxed_str());
+
+        // This is hopefully ok because we are only ever getting a reference to the buffer of the
+        // string, not the string struct itself, if the string never changes, we should be fine
+        // even if the vec itself changes.
+        unsafe {
+            Ok(std::mem::transmute(self.sources.last().unwrap().as_ref()))
+        }
+    }
+
+    pub fn assemble_src(&mut self, src_file: &str) -> Result<()> {
+        let src = self.add_src(src_file)?;
+        let prog = parse_src(src)?;
+        self.assemble_main(&prog.stmts)
+    }
+
+    fn assemble_main(&mut self, stmts: &[ast::Stmt<'a>]) -> Result<()> {
         // Write a bunch of zeros so that we can go past the header position
         self.writer.write(&[0; risc0::FileHeader::SIZE as usize])?;
 
-        let mut offset = 0;
-        self.find_labels_and_macros(stmts, &mut offset)?;
-        self.parent = None;
-        self.assemble_stmts(stmts)?;
+        self.assemble(stmts)?;
 
         self.writer.seek(SeekFrom::Start(0))?;
 
@@ -154,17 +175,34 @@ where
         Ok(())
     }
 
+    fn assemble(&mut self, stmts: &[ast::Stmt<'a>]) -> Result<()> {
+        let mut offset = 0;
+        self.find_labels_and_macros(stmts, &mut offset)?;
+        self.parent = None;
+        self.assemble_stmts(stmts)?;
+        self.parent = None;
+
+        Ok(())
+    }
+
     fn find_labels_and_macros(&mut self, stmts: &[ast::Stmt<'a>], offset: &mut usize) -> Result<()> {
         use ast::Stmt::*;
 
         for stmt in stmts {
             match stmt {
                 Marker(..)   |
-                Define(..)   |
-                Include(..)  => (),
+                Define(..)   => (),
+
+                Include(s)   => {
+                    let src = self.add_src(s.content)?;
+                    let prog = parse_src(src)?;
+                    self.assemble(&prog.stmts)?;
+                }
+
                 Macro(mac)   => {
                     self.macros.insert(mac.name.content, mac.clone());
-                },
+                }
+
                 Label(label) => self.add_label_to(label, *offset)?,
 
                 Inst(inst)   => {
@@ -286,10 +324,7 @@ where
                 }
             }
 
-            Include(ast::Str { content: _fname, .. }) => {
-                unimplemented!()
-            }
-
+            Include(..) => (),
         }
 
         Ok(())
