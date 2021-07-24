@@ -8,11 +8,9 @@ use reg_bank::RegBank;
 use os::*;
 use std::env;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::Read;
 
 const MEMORY_SIZE: usize = 65_536;
-const HEADER_FILE_SIZE: usize = 10;
-const INSTRUCTION_SIZE: usize = 16;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -111,7 +109,7 @@ fn main() {
                 reg_bank.set_zero_flag(comparator_result);
             }
             Instruction::Clt(reg1, reg2) => {
-                let comparator_result: bool = reg_bank[reg1] != reg_bank[reg2];
+                let comparator_result: bool = reg_bank[reg1] < reg_bank[reg2];
                 reg_bank.set_zero_flag(comparator_result);
             }
 
@@ -136,6 +134,7 @@ fn main() {
                 let addr = (reg_bank[reg2] + immediate as i16) as usize;
                 memory[addr..addr + 2].copy_from_slice(&be_vec);
             }
+            Instruction::Lli(reg1, immediate) => reg_bank[reg1] = i16::from_be_bytes([0x00, immediate]),
             Instruction::Lui(reg1, immediate) => reg_bank[reg1] = i16::from_be_bytes([immediate, 0x00]),
 
             // Branch instructions

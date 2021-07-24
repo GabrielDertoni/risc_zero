@@ -17,6 +17,7 @@ pub enum Instruction {
     Clt(Reg, Reg),
     Addi(Reg, u8), 
     Lui(Reg, u8),
+    Lli(Reg, u8),
     Jmp(Reg),
     Beq(Reg),
     Bne(Reg),
@@ -77,36 +78,37 @@ impl Instruction {
             },
 
             // I-type instructions: Immediate value related instructions
-            3 | 4 | 5 => {
+            3 | 4 | 5 | 6 => {
                 let reg = Reg::from_addr(((code >> 8) & 0xf) as u8);
                 let immediate: u8 = (code & 0xff) as u8;
 
                 match opcode {
                     3 => Addi(reg, immediate),
                     4 => Lui(reg, immediate),
-                    5 => Andi(reg, immediate),
+                    5 => Lli(reg, immediate),
+                    6 => Andi(reg, immediate),
                     _ => unreachable!(),
                 }
             },
 
             // M-type instructions: Memory related
-            6 | 7 | 8 | 9 => {
+            7 | 8 | 9 | 10 => {
                 let reg1 = Reg::from_addr(((code >> 8) & 0xf) as u8);
                 let reg2 = Reg::from_addr(((code >> 4) & 0xf) as u8);
                 let immediate = (code & 0b11111) as u8;
                 
                 match opcode {
-                    6 => Ldb(reg1, reg2, immediate),
-                    7 => Stb(reg1, reg2, immediate),
-                    8 => Ldw(reg1, reg2, immediate),
-                    9 => Stw(reg1, reg2, immediate),
-                    _ => unreachable!(),
+                    7  => Ldb(reg1, reg2, immediate),
+                    8  => Stb(reg1, reg2, immediate),
+                    9  => Ldw(reg1, reg2, immediate),
+                    10 => Stw(reg1, reg2, immediate),
+                    _  => unreachable!(),
                 }
             },
 
             // Operational system related instructions
-            10 => Int,
-            11 => Hlt,
+            11 => Int,
+            12 => Hlt,
             n => return Err(
                 format!("Unexpected opcode: {}", n)
             ),
@@ -176,11 +178,12 @@ impl Instruction {
             }
 
             // I - type instructions
-            Addi(dest, imm) | Andi(dest, imm) | Lui(dest, imm) => {
+            Addi(dest, imm) | Andi(dest, imm) | Lui(dest, imm) | Lli(dest, imm) => {
                 let opcode = match self {
                     Addi(..) => 3,
                     Lui(..)  => 4,
-                    Andi(..) => 5,
+                    Lli(..)  => 5,
+                    Andi(..) => 6,
                     _        => unreachable!(),
                 };
 
@@ -192,10 +195,10 @@ impl Instruction {
             Ldb(dest, reg, imm) | Stb(dest, reg, imm) |
             Ldw(dest, reg, imm) | Stw(dest, reg, imm)  => {
                 let opcode = match self {
-                    Ldb(..) => 6,
-                    Stb(..) => 7,
-                    Ldw(..) => 8,
-                    Stw(..) => 9,
+                    Ldb(..) => 7,
+                    Stb(..) => 8,
+                    Ldw(..) => 9,
+                    Stw(..) => 10,
                     _       => unreachable!(),
                 };
 
@@ -206,12 +209,12 @@ impl Instruction {
             }
 
             Int  => {
-                let opcode = 10;
+                let opcode = 11;
                 encoded |= opcode << 12;
             }
 
             Hlt => {
-                let opcode = 11;
+                let opcode = 12;
                 encoded |= opcode << 12;
             }
         }
@@ -321,6 +324,7 @@ impl Display for Instruction {
             Addi(reg1, imm)      => write!(f, "addi {}, {}", reg1, imm),
             Andi(reg1, imm)      => write!(f, "andi {}, {}", reg1, imm),
             Lui(reg1, imm)       => write!(f, "lui  {}, {}", reg1, imm),
+            Lli(reg1, imm)       => write!(f, "lli  {}, {}", reg1, imm),
             Jmp(reg1)            => write!(f, "jmp  {}", reg1),
             Beq(reg1)            => write!(f, "beq  {}", reg1),
             Bne(reg1)            => write!(f, "bne  {}", reg1),
