@@ -17,7 +17,7 @@ pub fn read_integer(reg_bank: &mut RegBank) {
     
     let trimmed_input = input.trim();
     match trimmed_input.parse::<i16>() {
-        Ok(n)   => reg_bank[Reg::ACC] = n,
+        Ok(n)   => reg_bank[Reg::R1] = n,
         Err(..) => println!("Input is not a valid integer."),
     }
 }
@@ -30,7 +30,7 @@ pub fn read_character(reg_bank: &mut RegBank) {
 
     let trimmed_input = input.trim();
     match trimmed_input.parse::<char>() {
-        Ok(n)   => reg_bank[Reg::ACC] = n as i16,
+        Ok(n)   => reg_bank[Reg::R1] = n as i16,
         Err(..) => println!("Input is not a valid character."),
     }
 }

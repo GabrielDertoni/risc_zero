@@ -44,7 +44,7 @@
 
 - [J] `BEQ <reg1>` - `if (!ZERO) goto reg1`
 - [J] `BNE <reg1>` - `if (ZERO) goto reg1`
-    - [J] `JMP <reg1>` - `ANDI LF ZERO, BEQ reg1`
+- [J] `JMP <reg1>` - `goto reg1`
 
 ### Instruções de comparação:
 
@@ -58,17 +58,24 @@
 - [M] `LDW <reg1> <im> <reg2>` - `reg1 := *(int16_t *)(reg2 + im)`
 - [M] `STW <reg1> <im> <reg2>` - `*(int16_t *)(reg2 + im) := reg1`
 - [I] `LUI <reg1> <im>` - `reg1 = im << 8`
+- [I] `LLI <reg1> <im>` - `reg1 = im & 0xff`
 
 ### Input/Output
 
-- [R] `GET <reg1>` - `reg1 = getchar()`
-    - GETD (Get decimal)
-    - GETS (Get string)
-- [R] `PUT <reg1>` - `putchar(reg1)`
-    - PUTD (Put decimal)
-    - PUTS (Put string) 
+A entrada/saída de dados através dos dispositivos de entrada/saída
+é feita a partir da instrução `INT` (Interrupt), que atua como uma
+chamada do sistema operacinal (_syscall_) a partir do que estiver no
+registrador de acumulação.
 
+- <ACC> == 1: READ_CHAR,
+- <ACC> == 2: READ_INTEGER,
+- <ACC> == 3: PRINT_CHAR
+- <ACC> == 4: PRINT_DECIMAL
+- <ACC> == 5: PRINT_BINARY
+- <ACC> == 6: PRINT_HEX,
 
+O resultado lido/imprimido na tela é sempre relativo ao registrador
+R1.
 
 ## Layout das instruções:
 
@@ -78,5 +85,3 @@ R    | 4      | 4    | 4    | -  | 4
 I    | 4      | 4    | -    | 8  | -
 M    | 4      | 4    | 4    | 5  | -
 J    | 4      | 4    | -    | -  | 8
-
-

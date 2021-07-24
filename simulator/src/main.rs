@@ -153,9 +153,13 @@ fn main() {
             // Operational system instructions
             Instruction::Int => {
                 match reg_bank[Reg::ACC] {
-                    0 => read_character(&mut reg_bank),
-                    1 => print!("{}", reg_bank[Reg::R1].to_le_bytes()[0] as char),
-                    n => panic!("Unexpected system call: {}.", n),
+                    READ_CHAR     => read_character(&mut reg_bank),
+                    READ_INTEGER  => read_integer(&mut reg_bank),
+                    PRINT_CHAR    => print!("{}", reg_bank[Reg::R1].to_le_bytes()[0] as char),
+                    PRINT_DECIMAL => print!("{}", reg_bank[Reg::R1]),
+                    PRINT_BINARY  => print!("{:b}", reg_bank[Reg::R1]),
+                    PRINT_HEX     => print!("{:x}", reg_bank[Reg::R1]),
+                    n             => panic!("Unexpected system call: {}.", n),
                 }
             }
             Instruction::Hlt => break,
