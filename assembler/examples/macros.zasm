@@ -1,36 +1,34 @@
 
-@macro la %reg, #imm {
-    andi %reg, 0
-    lui  %reg, (#imm >> 8)
-    addi %reg, (#imm & 0xff)
-}
-
-@macro jl #label {
-    la $tmp, #label
-    jmp $tmp
-}
-
-@macro jal #label {
-    la $adr, next_pc
-    jl #label
-next_pc:
-}
-
-@macro putc #char {
-    la $r1, #char
-    la $acc, 1
-    int
-}
-
-@macro ret {
-    jmp $adr
-}
+@include "examples/utils.zasm"
 
 main:
-    jal .func
+    la $r2, msg
+    jal print_string
     putc 'A'
     hlt
 
 .func:
     putc 'F'
     ret
+
+; r2 is the char pointer
+print_string:
+.loop:
+    ldb  $r1, $r2(0)
+
+    andi $acc, 0
+    la   $tmp, .loop_end
+    ceq  $acc, $r1
+    beq  $tmp
+
+    lli  $acc, 1            ; Value for putchar software interrupt
+    int                     ; Cause the software interrupt
+    
+    addi $r2, 1
+    jl   .loop
+.loop_end:
+    ret
+
+.data
+
+msg: "Hello, world!\0"
