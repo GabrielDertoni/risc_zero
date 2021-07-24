@@ -67,12 +67,12 @@ A entrada/saída de dados através dos dispositivos de entrada/saída
 chamada do sistema operacinal (_syscall_) a partir do que estiver no
 registrador de acumulação.
 
-- <ACC> == 1: READ_CHAR,
-- <ACC> == 2: READ_INTEGER,
-- <ACC> == 3: PRINT_CHAR
-- <ACC> == 4: PRINT_DECIMAL
-- <ACC> == 5: PRINT_BINARY
-- <ACC> == 6: PRINT_HEX,
+- ACC == 1: READ_CHAR,
+- ACC == 2: READ_INTEGER,
+- ACC == 3: PRINT_CHAR
+- ACC == 4: PRINT_DECIMAL
+- ACC == 5: PRINT_BINARY
+- ACC == 6: PRINT_HEX,
 
 O resultado lido/imprimido na tela é sempre relativo ao registrador
 R1.
