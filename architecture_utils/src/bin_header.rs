@@ -1,6 +1,7 @@
 use std::convert::TryInto;
 use std::str;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileHeader {
     pub magic_number: u16,
     pub signature: u32,
