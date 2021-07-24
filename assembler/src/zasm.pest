@@ -14,7 +14,7 @@ stmt = { include
 
 include = { "@include" ~ str ~ eol }
 define = { "@define" ~ ident ~ expr ~ eol }
-macro_rule = { "@macro" ~ ident ~ macro_args ~ macro_body }
+macro_rule = { "@macro" ~ ident ~ macro_args? ~ macro_body }
     macro_args = { macro_arg ~ ("," ~ macro_arg)* }
     macro_arg = ${ ("%" | "#") ~ ident }
     macro_body = { "{" ~ (stmt | NEWLINE)* ~ "}" }

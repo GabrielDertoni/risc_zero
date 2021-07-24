@@ -20,7 +20,7 @@ pub type ParserRule = Rule;
 type Result<T> = std::result::Result<T, Error>;
 
 #[macro_export]
-macro_rules! fst {
+macro_rules! next {
     ($iter:expr) => {
         $iter.next().unwrap()
     }
@@ -67,13 +67,22 @@ impl<'a> Context<'a> {
             .next() // The match to `name` with the highest possible depth.
             .map(|(_, v)| v)
     }
+
+    pub fn remove_macro_args_in_depth(&mut self) {
+        let this_depth = self.macro_depth;
+        self.macro_args
+            .drain_filter(|&(_, depth), _| depth == this_depth)
+            .for_each(drop)
+    }
 }
 
 #[inline]
-fn parse_lbl_name(lbl_name: Pair<Rule>) -> Result<Label> {
+fn parse_lbl_name<'a>(lbl_name: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<Label<'a>> {
     let ident = Ident::from(lbl_name);
 
-    if ident.content.starts_with(".") {
+    if let Some(cx) = cx {
+        Ok(Label::Macro(ident, cx.macro_depth))
+    } else if ident.content.starts_with(".") {
         Ok(Label::local(ident))
     } else {
         Ok(Label::global(ident))
@@ -81,9 +90,9 @@ fn parse_lbl_name(lbl_name: Pair<Rule>) -> Result<Label> {
 }
 
 #[inline]
-fn parse_label(pair: Pair<Rule>) -> Result<Label> {
-    let lbl_name = fst!(pair.into_inner());
-    parse_lbl_name(lbl_name)
+fn parse_label<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<Label<'a>> {
+    let lbl_name = next!(pair.into_inner());
+    parse_lbl_name(lbl_name, cx)
 }
 
 fn parse_str(str: Pair<Rule>) -> Result<Str> {
@@ -170,11 +179,11 @@ fn get_macro_arg<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Resu
 }
 
 fn parse_arg<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<Arg<'a>> {
-    let arg = fst!(pair.into_inner());
+    let arg = next!(pair.into_inner());
 
     let parsed = match arg.as_rule() {
         Rule::arg_reg     => {
-            let arg_reg = fst!(arg.into_inner());
+            let arg_reg = next!(arg.into_inner());
 
             match arg_reg.as_rule() {
                 Rule::reg       => Arg::Reg(parse_reg(arg_reg)?),
@@ -183,13 +192,13 @@ fn parse_arg<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<A
             }
         },
         Rule::arg_imm     => {
-            let arg_imm = fst!(arg.into_inner());
+            let arg_imm = next!(arg.into_inner());
             Arg::Imm(parse_expr(arg_imm, cx)?)
         },
         Rule::arg_reg_imm => {
             let [arg_reg, arg_imm] = arg.into_inner().to_array().unwrap();
-            let reg = fst!(arg_reg.into_inner());
-            let imm = fst!(arg_imm.into_inner());
+            let reg = next!(arg_reg.into_inner());
+            let imm = next!(arg_imm.into_inner());
             Arg::RegImm(parse_reg(reg)?, parse_expr(imm, cx)?)
         },
         _ => unreachable!(),
@@ -223,7 +232,7 @@ fn parse_inst<'a>(pair: Pair<'a, Rule>, mut cx: Option<&mut Context<'a>>) -> Res
 }
 
 fn parse_marker<'a>(pair: Pair<'a, Rule>) -> Result<Marker<'a>> {
-    let marker = fst!(pair.into_inner());
+    let marker = next!(pair.into_inner());
     let span = marker.as_span();
 
     match marker.as_rule() {
@@ -241,12 +250,12 @@ pub fn parse_stmts<'a>(pairs: Pairs<'a, Rule>, mut cx: Option<&mut Context<'a>>)
 }
 
 fn parse_stmt<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<Stmt<'a>> {
-    let stmt = fst!(pair.into_inner());
+    let stmt = next!(pair.into_inner());
     let span = stmt.as_span();
 
     let parsed = match stmt.as_rule() {
         Rule::include => {
-            let s = fst!(stmt.into_inner());
+            let s = next!(stmt.into_inner());
             Stmt::Include(parse_str(s)?)
         }
 
@@ -258,21 +267,40 @@ fn parse_stmt<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<
         Rule::marker => Stmt::Marker(parse_marker(stmt)?),
 
         Rule::macro_rule => {
-            let [ident, args, stmts] = take_n!(stmt.into_inner());
+            let mut rule_iter = stmt.into_inner();
+            let ident = next!(rule_iter);
+            let args_or_body = next!(rule_iter);
+
+            let args: Vec<Ident>;
+            let body: Pairs<Rule>;
+
+            match args_or_body.as_rule() {
+                Rule::macro_args => {
+                    args = args_or_body
+                        .into_inner()
+                        .map(parse_macro_arg)
+                        .collect::<Result<_>>()?;
+
+                    body = next!(rule_iter).into_inner();
+                }
+
+                Rule::macro_body => {
+                    args = Vec::new();
+                    body = args_or_body.into_inner();
+                }
+
+                _ => unreachable!(),
+            }
 
             Stmt::Macro(Macro {
                 name: ident.into(),
-                args: args
-                    .into_inner()
-                    .map(parse_macro_arg)
-                    .collect::<Result<_>>()?,
-
-                contents: stmts.into_inner(),
+                args,
+                body,
                 span,
             })
         }
 
-        Rule::label  => Stmt::Label(parse_label(stmt)?),
+        Rule::label  => Stmt::Label(parse_label(stmt, cx)?),
         Rule::inst   => Stmt::Inst(parse_inst(stmt, cx)?),
         Rule::expr   => Stmt::Expr(parse_expr(stmt, cx)?),
         Rule::str    => Stmt::Str(parse_str(stmt)?),
@@ -327,15 +355,15 @@ fn parse_expr<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<
     }
 
     fn parse_atom<'a>(cur_tok: Pair<'a, Rule>, mut cx: Option<&mut Context<'a>>) -> Result<Expr<'a>> {
-        let atom = fst!(cur_tok.into_inner());
+        let atom = next!(cur_tok.into_inner());
         let span = atom.as_span();
 
         match atom.as_rule() {
             Rule::num      => Ok(Expr::Num(parse_num(atom)?)),
             Rule::chr      => Ok(Expr::Chr(Chr::new(extract_chr(atom.as_str()), span))),
-            Rule::lbl_name => Ok(Expr::Lbl(parse_lbl_name(atom)?)),
+            Rule::lbl_name => Ok(Expr::Lbl(parse_lbl_name(atom, None)?)),
             Rule::paren    => {
-                let expr = fst!(atom.into_inner());
+                let expr = next!(atom.into_inner());
                 parse_precedence(&mut expr.into_inner(), 0, cx.as_deref_mut())
             },
             Rule::macro_arg => {
@@ -389,7 +417,7 @@ fn parse_expr<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<
 
 pub fn parse_zasm<'a>(zasm: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<Prog<'a>> {
     let span = zasm.as_span();
-    let stmts = fst!(zasm.into_inner());
+    let stmts = next!(zasm.into_inner());
     let stmts = parse_stmts(stmts.into_inner(), cx)?;
 
     Ok(Prog {
@@ -399,7 +427,7 @@ pub fn parse_zasm<'a>(zasm: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Res
 }
 
 pub fn parse_src(program: &str) -> Result<Prog> {
-    let zasm = fst!(ZASMParser::parse(Rule::zasm, program)?);
+    let zasm = next!(ZASMParser::parse(Rule::zasm, program)?);
     parse_zasm(zasm, None)
 }
 
@@ -652,7 +680,7 @@ mod test {
                     ..
                 },
                 args,
-                contents,
+                body,
                 ..
             }) => (args, contents)
         );

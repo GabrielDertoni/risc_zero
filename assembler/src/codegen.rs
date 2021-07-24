@@ -30,11 +30,16 @@ impl<'a> LabelDef<'a> {
 struct LabelName<'a> {
     parent: Option<&'a str>,
     name: &'a str,
+    id: usize,
 }
 
 impl<'a> LabelName<'a> {
     fn new(parent: Option<&'a str>, name: &'a str) -> LabelName<'a> {
-        LabelName { parent, name }
+        LabelName { parent, name, id: 0 }
+    }
+
+    fn new_macro(name: &'a str, id: usize) -> LabelName<'a> {
+        LabelName { parent: None, name, id }
     }
 }
 
@@ -184,7 +189,7 @@ where
                             cx.insert_macro_arg(macro_arg.content, inst_arg.clone());
                         }
 
-                        let stmts = parse_stmts(mac.contents.clone(), Some(&mut cx))?;
+                        let stmts = parse_stmts(mac.body.clone(), Some(&mut cx))?;
                         self.find_labels_and_macros(&stmts, offset)?;
                     }
                 }
@@ -454,7 +459,6 @@ where
                 // We have overcounted the number of instructions because one of them was actually
                 // a macro.
                 self.inst_count -= 1;
-                self.macro_ctx.macro_depth += 1;
 
                 let mac = self.macros.get(mac).unwrap();
                 
@@ -466,11 +470,27 @@ where
                 }
 
                 for (macro_arg, inst_arg) in mac.args.iter().zip(&inst.args) {
-                    self.macro_ctx.insert_macro_arg(macro_arg.content, inst_arg.clone());
+                    let argument = if let ast::Arg::Imm(expr) = inst_arg {
+                        ast::Arg::Imm(
+                            ast::Expr::Num(
+                                ast::Num::new(
+                                    self.assemble_expr(expr)?,
+                                    span.clone(),
+                                )
+                            )
+                        )
+                    } else {
+                        inst_arg.clone()
+                    };
+
+                    self.macro_ctx.insert_macro_arg(macro_arg.content, argument);
                 }
 
-                let stmts = parse_stmts(mac.contents.clone(), Some(&mut self.macro_ctx))?;
+                self.macro_ctx.macro_depth += 1;
+                let stmts = parse_stmts(mac.body.clone(), Some(&mut self.macro_ctx))?;
                 self.assemble_stmts(&stmts)?;
+                self.macro_ctx.remove_macro_args_in_depth();
+                self.macro_ctx.macro_depth -= 1;
             }
 
             _ => return error!("instruction not supported", span),
@@ -488,7 +508,7 @@ where
         }
     }
 
-    fn assemble_expr(&mut self, expr: &ast::Expr<'a>) -> Result<i32> {
+    fn assemble_expr(&self, expr: &ast::Expr<'a>) -> Result<i32> {
         use ast::{ Expr, Num, Chr, BinExpr };
 
         let span = expr.span();
@@ -529,7 +549,7 @@ where
         }
     }
 
-    fn get_label(&mut self, lbl: &ast::Label<'a>) -> Result<Addr> {
+    fn get_label(&self, lbl: &ast::Label<'a>) -> Result<Addr> {
         use ast::Label;
 
         let span = lbl.span();
@@ -544,7 +564,17 @@ where
                 LabelName::new(parent, local.content)
             }
 
-            Label::Global(global) => LabelName::new(None, global.content),
+            Label::Global(global) => {
+                let global_name = LabelName::new(None, global.content);
+
+                let mac = LabelName::new_macro(global.content, self.macro_ctx.macro_depth);
+
+                if self.labels.contains_key(&global_name) {
+                    global_name
+                } else {
+                    mac
+                }
+            },
             Label::Macro(..)      => unreachable!(),
 
         };
@@ -577,8 +607,9 @@ where
                 LabelName::new(None, global.content)
             }
 
-            Label::Macro(..) => {
-                unreachable!()
+            Label::Macro(mac, id) => {
+                // unreachable!()
+                LabelName::new_macro(mac.content, *id)
             }
         };
 
