@@ -2,12 +2,13 @@
 
 use std::collections::HashMap;
 use std::io::{ Seek, SeekFrom, Write };
+use std::cell::RefCell;
 
 use pest::Span;
 use architecture_utils as risc0;
 
 use crate::ast;
-use crate::parser::{ Context, parse_stmts };
+use crate::parser::{ Context, parse_src, parse_stmts };
 use crate::error::Result;
 use crate::error;
 
@@ -30,16 +31,22 @@ impl<'a> LabelDef<'a> {
 struct LabelName<'a> {
     parent: Option<&'a str>,
     name: &'a str,
+    id: usize,
 }
 
 impl<'a> LabelName<'a> {
     fn new(parent: Option<&'a str>, name: &'a str) -> LabelName<'a> {
-        LabelName { parent, name }
+        LabelName { parent, name, id: 0 }
+    }
+
+    fn new_macro(name: &'a str, id: usize) -> LabelName<'a> {
+        LabelName { parent: None, name, id }
     }
 }
 
 pub struct Assembler<'a, W> {
     writer: W,
+    sources: Vec<Box<str>>,
     parent: Option<ast::Ident<'a>>,
     labels: HashMap<LabelName<'a>, LabelDef<'a>>,
     defines: HashMap<&'a str, ast::Expr<'a>>,
@@ -57,6 +64,7 @@ where
     pub fn new(writer: W) -> Assembler<'a, W> {
         Assembler {
             writer,
+            sources: Vec::new(),
             parent: None,
             labels: HashMap::new(),
             defines: HashMap::new(),
@@ -87,6 +95,7 @@ where
     fn emit_string(&mut self, s: &str, span: Span<'a>) -> Result<usize> {
         let bytes = s.as_bytes();
         let mut i = 0;
+        let mut n_bytes = 0;
 
         while i < bytes.len() {
             let byte = if bytes[i] == b'\\' {
@@ -109,35 +118,52 @@ where
             };
 
             self.emit_byte(byte)?;
-            i += 1
+            i += 1;
+            n_bytes += 1;
         }
 
-        Ok(i)
+        Ok(n_bytes)
     }
 
     // TODO: remove this or find a better way of doing it
     fn count_string_bytes(&self, s: &str) -> usize {
         let bytes = s.as_bytes();
         let mut i = 0;
+        let mut n_bytes = 0;
 
         while i < bytes.len() {
             if bytes[i] == b'\\' {
                 i += 1;
             }
             i += 1;
+            n_bytes += 1;
         }
 
-        i
+        n_bytes
     }
 
-    pub fn assemble(&mut self, stmts: &[ast::Stmt<'a>]) -> Result<()> {
+    fn add_src(&mut self, src_file: &str) -> Result<&'a str> {
+        self.sources.push(std::fs::read_to_string(src_file)?.into_boxed_str());
+
+        // This is hopefully ok because we are only ever getting a reference to the buffer of the
+        // string, not the string struct itself, if the string never changes, we should be fine
+        // even if the vec itself changes.
+        unsafe {
+            Ok(std::mem::transmute(self.sources.last().unwrap().as_ref()))
+        }
+    }
+
+    pub fn assemble_src(&mut self, src_file: &str) -> Result<()> {
+        let src = self.add_src(src_file)?;
+        let prog = parse_src(src)?;
+        self.assemble_main(&prog.stmts)
+    }
+
+    fn assemble_main(&mut self, stmts: &[ast::Stmt<'a>]) -> Result<()> {
         // Write a bunch of zeros so that we can go past the header position
         self.writer.write(&[0; risc0::FileHeader::SIZE as usize])?;
 
-        let mut offset = 0;
-        self.find_labels_and_macros(stmts, &mut offset)?;
-        self.parent = None;
-        self.assemble_stmts(stmts)?;
+        self.assemble(stmts)?;
 
         self.writer.seek(SeekFrom::Start(0))?;
 
@@ -149,17 +175,34 @@ where
         Ok(())
     }
 
+    fn assemble(&mut self, stmts: &[ast::Stmt<'a>]) -> Result<()> {
+        let mut offset = 0;
+        self.find_labels_and_macros(stmts, &mut offset)?;
+        self.parent = None;
+        self.assemble_stmts(stmts)?;
+        self.parent = None;
+
+        Ok(())
+    }
+
     fn find_labels_and_macros(&mut self, stmts: &[ast::Stmt<'a>], offset: &mut usize) -> Result<()> {
         use ast::Stmt::*;
 
         for stmt in stmts {
             match stmt {
                 Marker(..)   |
-                Define(..)   |
-                Include(..)  => (),
+                Define(..)   => (),
+
+                Include(s)   => {
+                    let src = self.add_src(s.content)?;
+                    let prog = parse_src(src)?;
+                    self.assemble(&prog.stmts)?;
+                }
+
                 Macro(mac)   => {
                     self.macros.insert(mac.name.content, mac.clone());
-                },
+                }
+
                 Label(label) => self.add_label_to(label, *offset)?,
 
                 Inst(inst)   => {
@@ -184,7 +227,7 @@ where
                             cx.insert_macro_arg(macro_arg.content, inst_arg.clone());
                         }
 
-                        let stmts = parse_stmts(mac.contents.clone(), Some(&mut cx))?;
+                        let stmts = parse_stmts(mac.body.clone(), Some(&mut cx))?;
                         self.find_labels_and_macros(&stmts, offset)?;
                     }
                 }
@@ -281,10 +324,7 @@ where
                 }
             }
 
-            Include(ast::Str { content: _fname, .. }) => {
-                unimplemented!()
-            }
-
+            Include(..) => (),
         }
 
         Ok(())
@@ -454,7 +494,6 @@ where
                 // We have overcounted the number of instructions because one of them was actually
                 // a macro.
                 self.inst_count -= 1;
-                self.macro_ctx.macro_depth += 1;
 
                 let mac = self.macros.get(mac).unwrap();
                 
@@ -466,11 +505,27 @@ where
                 }
 
                 for (macro_arg, inst_arg) in mac.args.iter().zip(&inst.args) {
-                    self.macro_ctx.insert_macro_arg(macro_arg.content, inst_arg.clone());
+                    let argument = if let ast::Arg::Imm(expr) = inst_arg {
+                        ast::Arg::Imm(
+                            ast::Expr::Num(
+                                ast::Num::new(
+                                    self.assemble_expr(expr)?,
+                                    span.clone(),
+                                )
+                            )
+                        )
+                    } else {
+                        inst_arg.clone()
+                    };
+
+                    self.macro_ctx.insert_macro_arg(macro_arg.content, argument);
                 }
 
-                let stmts = parse_stmts(mac.contents.clone(), Some(&mut self.macro_ctx))?;
+                self.macro_ctx.macro_depth += 1;
+                let stmts = parse_stmts(mac.body.clone(), Some(&mut self.macro_ctx))?;
                 self.assemble_stmts(&stmts)?;
+                self.macro_ctx.remove_macro_args_in_depth();
+                self.macro_ctx.macro_depth -= 1;
             }
 
             _ => return error!("instruction not supported", span),
@@ -488,7 +543,7 @@ where
         }
     }
 
-    fn assemble_expr(&mut self, expr: &ast::Expr<'a>) -> Result<i32> {
+    fn assemble_expr(&self, expr: &ast::Expr<'a>) -> Result<i32> {
         use ast::{ Expr, Num, Chr, BinExpr };
 
         let span = expr.span();
@@ -529,7 +584,7 @@ where
         }
     }
 
-    fn get_label(&mut self, lbl: &ast::Label<'a>) -> Result<Addr> {
+    fn get_label(&self, lbl: &ast::Label<'a>) -> Result<Addr> {
         use ast::Label;
 
         let span = lbl.span();
@@ -544,7 +599,17 @@ where
                 LabelName::new(parent, local.content)
             }
 
-            Label::Global(global) => LabelName::new(None, global.content),
+            Label::Global(global) => {
+                let global_name = LabelName::new(None, global.content);
+
+                let mac = LabelName::new_macro(global.content, self.macro_ctx.macro_depth);
+
+                if self.labels.contains_key(&global_name) {
+                    global_name
+                } else {
+                    mac
+                }
+            },
             Label::Macro(..)      => unreachable!(),
 
         };
@@ -577,8 +642,9 @@ where
                 LabelName::new(None, global.content)
             }
 
-            Label::Macro(..) => {
-                unreachable!()
+            Label::Macro(mac, id) => {
+                // unreachable!()
+                LabelName::new_macro(mac.content, *id)
             }
         };
 

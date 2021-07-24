@@ -15,7 +15,6 @@ mod codegen;
 mod error;
 mod utils;
 
-use crate::parser::parse_src;
 use crate::codegen::Assembler;
 
 fn main() -> std::io::Result<()> {
@@ -32,19 +31,13 @@ fn main() -> std::io::Result<()> {
     let src_file = matches.value_of("SOURCE").unwrap();
     let out = matches.value_of("output").unwrap_or("a.out");
 
-    let source = fs::read_to_string(src_file)?;
+    let file = fs::File::create(out)?;
+    let mut assembler = Assembler::new(file);
 
-    match parse_src(&source) {
-        Err(e)   => eprintln!("{}", e),
-        Ok(prog) => {
-            let file = fs::File::create(out)?;
-            let mut assembler = Assembler::new(file);
-
-            if let Err(e) = assembler.assemble(&prog.stmts) {
-                eprintln!("{}", e);
-            }
-        }
-    }
+    assembler.assemble_src(src_file)
+        .unwrap_or_else(|err| {
+            eprintln!("{}", err);
+        });
 
     Ok(())
 }

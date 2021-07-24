@@ -1,0 +1,43 @@
+
+@macro lli %reg, #imm {
+    andi %reg, 0
+    addi %reg, #imm
+}
+
+@macro la %reg, #imm {
+    andi %reg, 0
+    lui  %reg, (#imm >> 8)
+    addi %reg, (#imm & 0xff)
+}
+
+@macro jl #label {
+    la $tmp, #label
+    jmp $tmp
+}
+
+@macro beql #label {
+    la  $tmp, #label
+    beq $tmp
+}
+
+@macro bnel #label {
+    la  $tmp, #label
+    bne $tmp
+}
+
+@macro jal #label {
+    la $adr, next_pc
+    jl #label
+next_pc:
+}
+
+@macro putc #char {
+    la $r1, #char
+    la $acc, 1
+    int
+}
+
+@macro ret {
+    jmp $adr
+}
+

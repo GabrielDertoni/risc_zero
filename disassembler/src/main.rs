@@ -34,11 +34,14 @@ fn main() -> std::io::Result<()> {
         Box::new(fs::File::create(out)?)
     };
 
+    let mut addr = 0;
     for decoded in instructions {
         match decoded {
-            Ok(instruction) => writeln!(out_file, "{}", instruction)?,
+            Ok(instruction) => writeln!(out_file, "{:4x}: {}", addr, instruction)?,
             Err(e)          => eprintln!("{}", e),
         }
+
+        addr += 2;
     }
 
     Ok(())

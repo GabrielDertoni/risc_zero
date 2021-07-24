@@ -171,7 +171,7 @@ spanned! {
     pub struct Macro<'a> {
         pub name: Ident<'a>,
         pub args: Vec<Ident<'a>>,
-        pub contents: Pairs<'a, ParserRule>,
+        pub body: Pairs<'a, ParserRule>,
     }
 
     pub struct Ident<'a> {
