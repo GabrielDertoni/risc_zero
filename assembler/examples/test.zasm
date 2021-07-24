@@ -1,0 +1,44 @@
+; @include "utils.h"
+
+@macro jl #label {
+    la $tmp, #label
+    jmp $tmp
+}
+
+@macro jal #label {
+    la $adr, next_pc
+    jl #label
+next_pc:
+}
+
+@macro la %re, #label {
+    andi %re, 0
+    lui %re, (#label >> 8)
+    addi %re, (#label & 0xff)
+}
+
+main:
+    la $r4, msg 
+    andi $r3, 0
+    la $adr, .end_loop
+
+.loop:
+    ldb $r1, $r4(0)
+    
+    ceq $r1, $r3
+    bne $adr 
+    andi $acc, 0
+    addi $acc, 1
+    int
+
+    addi $r4, 1
+    la $r2, .loop
+    jmp $r2
+
+.end_loop:
+    hlt
+
+.data
+
+msg: "Hello, World!"
+

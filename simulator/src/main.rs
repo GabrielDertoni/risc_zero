@@ -8,7 +8,7 @@ use reg_bank::RegBank;
 use os::*;
 use std::env;
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, Write};
 
 const MEMORY_SIZE: usize = 65_536;
 const HEADER_FILE_SIZE: usize = 10;
@@ -19,23 +19,25 @@ fn main() {
     let bin_filename = &args[1];
 
     // Reading file header
-    let mut file = File::open(bin_filename).unwrap();
-    let mut header = Vec::new();
-    let bytes_read = file.by_ref().take(HEADER_FILE_SIZE as u64).read_to_end(&mut header);
-    let file_header = FileHeader::decode(&header[..]).unwrap();
+    let mut file = File::open(bin_filename).expect("Invalid provided filename.");
+    let mut file_as_bytes = Vec::new();
+    let _bytes_read = file.read_to_end(&mut file_as_bytes);
+    let file_header = match FileHeader::decode(&file_as_bytes) {
+        Ok(header)  => header,
+        Err(error)  => panic!("{}", error),
+    };
 
-    // Reading instructions
+    // Reading .text and .data segment
     let mut memory = vec![0_u8; MEMORY_SIZE];
-    let mut counter: usize = 0;
-    loop {
-        let mut temp = Vec::new();
-        let bytes_read = file.by_ref().take(INSTRUCTION_SIZE as u64).read_to_end(&mut temp);
-        if bytes_read.unwrap() < 16 {
-            break;
-        }
-        memory.splice(counter..counter + 15, temp);
-        counter += 16;
-    }
+    let text_segment_slice = &file_as_bytes[FileHeader::SIZE as usize..file_header.data_seg_start as usize];
+    memory[0..text_segment_slice.len()].copy_from_slice(text_segment_slice);
+    let data_segment_slice = &file_as_bytes[file_header.data_seg_start as usize..file_header.data_seg_end as usize];
+    memory[text_segment_slice.len()..(file_header.data_seg_end-FileHeader::SIZE as u16) as usize].copy_from_slice(data_segment_slice);
+
+//    let decoded: Vec<Instruction> = Instruction::decode_slice(text_segment_slice).unwrap();
+//    for inst in decoded {
+//        writeln!(std::io::stdout(), "{}", inst);
+//    }
 
     // Setting up reg_bank
     let mut reg_bank = RegBank::new();
@@ -44,8 +46,15 @@ fn main() {
 
     // Executing instructions
     loop {
-        let previous_pc_value = program_counter;
-        let curr_instruction = Instruction::from(u16::from_be_bytes([memory[program_counter], memory[program_counter+1]]));
+        let instruction_addr = u16::from_be_bytes([memory[program_counter], memory[program_counter+1]]);        
+        let curr_instruction = match Instruction::decode(instruction_addr) {
+            Ok(instr)   => instr,
+            Err(error)  => panic!("{}", error),
+        };
+        program_counter += 2;
+//        writeln!(std::io::stdout(), "{}", curr_instruction);
+//        println!("r1: {}", reg_bank[Reg::R1]);
+//        println!("r2: {}", reg_bank[Reg::R2]);
         match curr_instruction {
             Instruction::Noop => (),
 
@@ -131,7 +140,7 @@ fn main() {
 
             // Branch instructions
             Instruction::Beq(reg1) => {
-                if reg_bank.get_zero_flag() {
+                if !reg_bank.get_zero_flag() {
                     program_counter = reg_bank[reg1] as usize;
                 }
             }
@@ -145,19 +154,13 @@ fn main() {
             // Operational system instructions
             Instruction::Int => {
                 match reg_bank[Reg::ACC] {
-                    READ_INTEGER  => read_integer(&mut reg_bank),
-                    READ_CHAR     => read_character(&mut reg_bank),
-                    PRINT_DECIMAL => println!("{}", reg_bank[Reg::ACC]),
-                    PRINT_BINARY  => println!("{:b}", reg_bank[Reg::ACC]),
-                    PRINT_HEX     => println!("{:x}", reg_bank[Reg::ACC]),
-                    PRINT_CHAR    => println!("{}", reg_bank[Reg::ACC].to_le_bytes()[1] as char),
-                    n             => panic!("Unexpected system call: {}.", n),
+                    0 => read_character(&mut reg_bank),
+                    1 => print!("{}", reg_bank[Reg::R1].to_le_bytes()[0] as char),
+                    n => panic!("Unexpected system call: {}.", n),
                 }
             }
             Instruction::Hlt => break,
-        };
-        if previous_pc_value == program_counter {
-            program_counter += 2;
         }
     }
+    println!();
 }

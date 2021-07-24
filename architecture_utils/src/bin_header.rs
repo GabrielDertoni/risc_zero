@@ -2,8 +2,8 @@ use std::convert::TryInto;
 use std::str;
 
 pub struct FileHeader {
-    magic_number: u16,
-    signature: u32,
+    pub magic_number: u16,
+    pub signature: u32,
     pub data_seg_start: u16,
     pub data_seg_end: u16,
 }

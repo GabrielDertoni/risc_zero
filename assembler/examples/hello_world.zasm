@@ -29,20 +29,21 @@
 
 main:
     ; r1 is the char pointer
-    la $r1, msg
+    la $r2, msg
 .loop:
-    ldb $r2, $r1(2 + 2)
+    ldb $r1, $r2(0)
 
     andi $acc, 0
-    ceq $acc, $r2
+    ceq $acc, $r1
     la $adr, .loop_end
     bne $adr
 
     li  $acc, 1             ; Value for putchar software interrupt
     int                     ; Cause the software interrupt
-
-    la $r2, .loop
-    jmp $r2
+    
+    addi $r2, 1
+    la $r1, .loop
+    jmp $r1
 .loop_end:
 
     hlt
