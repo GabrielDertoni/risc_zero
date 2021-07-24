@@ -134,7 +134,8 @@ where
         // Write a bunch of zeros so that we can go past the header position
         self.writer.write(&[0; risc0::FileHeader::SIZE as usize])?;
 
-        self.find_labels(stmts)?;
+        let mut offset = 0;
+        self.find_labels_and_macros(stmts, &mut offset)?;
         self.parent = None;
         self.assemble_stmts(stmts)?;
 
@@ -148,25 +149,62 @@ where
         Ok(())
     }
 
-    fn find_labels(&mut self, stmts: &[ast::Stmt<'a>]) -> Result<()> {
+    fn find_labels_and_macros(&mut self, stmts: &[ast::Stmt<'a>], offset: &mut usize) -> Result<()> {
         use ast::Stmt::*;
-
-        let mut offset = 0;
 
         for stmt in stmts {
             match stmt {
                 Marker(..)   |
                 Define(..)   |
-                Include(..)  |
-                Macro(..)    => (),
-                Label(label) => self.add_label_to(label, offset)?,
-                Inst(..)     |
-                Expr(..)     => offset += 2,
-                Str(s)       => offset += self.count_string_bytes(s.content),
+                Include(..)  => (),
+                Macro(mac)   => {
+                    self.macros.insert(mac.name.content, mac.clone());
+                },
+                Label(label) => self.add_label_to(label, *offset)?,
+
+                Inst(inst)   => {
+                    if self.is_valid_instruction(inst.ident.content) {
+                        *offset += 2;
+                    } else if self.macros.contains_key(&inst.ident.content) {
+                        // TODO: this is not very efficient, fix it!
+
+                        let mut cx = self.macro_ctx.clone();
+                        cx.macro_depth += 1;
+
+                        let mac = self.macros.get(&inst.ident.content).unwrap();
+
+                        if mac.args.len() != inst.args.len() {
+                            return error!(
+                                format!("expected {} arguments, but got {}", mac.args.len(), inst.args.len()),
+                                inst.span()
+                            );
+                        }
+
+                        for (macro_arg, inst_arg) in mac.args.iter().zip(&inst.args) {
+                            cx.insert_macro_arg(macro_arg.content, inst_arg.clone());
+                        }
+
+                        let stmts = parse_stmts(mac.contents.clone(), Some(&mut cx))?;
+                        self.find_labels_and_macros(&stmts, offset)?;
+                    }
+                }
+
+                Expr(..)     => *offset += 2,
+                Str(s)       => *offset += self.count_string_bytes(s.content),
             }
         }
 
         Ok(())
+    }
+
+    fn is_valid_instruction(&self, name: &str) -> bool {
+        match name {
+            "noop" | "not"  | "add"  | "mult" | "mov"  | "div"  | "and"  |
+            "or"   | "shl"  | "shr"  | "ceq"  | "clt"  | "addi" | "andi" |
+            "lui"  | "jmp"  | "beq"  | "bne"  | "ldb"  | "stb"  | "ldw"  |
+            "stw"  | "int"  | "hlt" => true,
+            _ => false,
+        }
     }
 
     #[inline]
@@ -199,6 +237,9 @@ where
             }
 
             Label(..) => (),
+
+            // Assumes macros have already been resolved
+            Macro(..)  => (),
 
             Inst(inst) => {
                 if !self.in_text {
@@ -244,9 +285,6 @@ where
                 unimplemented!()
             }
 
-            Macro(mac)  => {
-                self.macros.insert(mac.name.content, mac.clone());
-            }
         }
 
         Ok(())
@@ -523,7 +561,6 @@ where
         use std::collections::hash_map::Entry::*;
 
         let span = lbl.span();
-        println!("Adding label {} to addr {}", lbl, addr);
 
         let lbl_name = match lbl {
             Label::Local(local) => {
