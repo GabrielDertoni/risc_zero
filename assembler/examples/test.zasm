@@ -28,7 +28,7 @@ main:
     ceq $r1, $r3
     bne $adr 
     andi $acc, 0
-    addi $acc, 1
+    addi $acc, 3
     int
 
     addi $r4, 1

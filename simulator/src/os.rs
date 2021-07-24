@@ -2,12 +2,12 @@ use crate::reg_bank::RegBank;
 use std::io;
 use architecture_utils::reg::Reg;
 
-pub const READ_INTEGER: i16 = 1;
-pub const READ_CHAR: i16 = 2;
-pub const PRINT_DECIMAL: i16 = 3;
-pub const PRINT_BINARY: i16 = 4;
-pub const PRINT_HEX: i16 = 5;
-pub const PRINT_CHAR: i16 = 6;
+pub const READ_CHAR: i16 = 1;
+pub const READ_INTEGER: i16 = 2;
+pub const PRINT_CHAR: i16 = 3;
+pub const PRINT_DECIMAL: i16 = 4;
+pub const PRINT_BINARY: i16 = 5;
+pub const PRINT_HEX: i16 = 6;
 
 pub fn read_integer(reg_bank: &mut RegBank) {
     let mut input = String::new();
