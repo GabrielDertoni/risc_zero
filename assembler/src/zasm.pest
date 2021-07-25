@@ -19,9 +19,10 @@ macro_rule = { "@macro" ~ ident ~ macro_args? ~ macro_body }
     macro_arg = ${ ("%" | "#") ~ ident }
     macro_body = { "{" ~ (stmt | NEWLINE)* ~ "}" }
 
-marker = { marker_data | marker_text }
-    marker_data = { ".data" }
-    marker_text = { ".text" }
+marker = { marker_entry | marker_data | marker_text }
+    marker_data  = { ".data" }
+    marker_text  = { ".text" }
+    marker_entry = { ".entry_point" ~ lbl_name }
 
 label = ${ lbl_name ~ ":" }
 

@@ -55,6 +55,7 @@ pub struct Assembler<'a, W> {
     in_text: bool,
     inst_count: u16,
     data_count: u16,
+    entry_point: Option<Addr>,
 }
 
 impl<'a, W> Assembler<'a, W>
@@ -73,6 +74,7 @@ where
             in_text: true,
             inst_count: 0,
             data_count: 0,
+            entry_point: None,
         }
     }
 
@@ -156,21 +158,30 @@ where
     pub fn assemble_src(&mut self, src_file: &str) -> Result<()> {
         let src = self.add_src(src_file)?;
         let prog = parse_src(src)?;
-        self.assemble_main(&prog.stmts)
+        self.assemble_main(&prog)
     }
 
-    fn assemble_main(&mut self, stmts: &[ast::Stmt<'a>]) -> Result<()> {
+    fn assemble_main(&mut self, prog: &ast::Prog<'a>) -> Result<()> {
         // Write a bunch of zeros so that we can go past the header position
         self.writer.write(&[0; risc0::FileHeader::SIZE as usize])?;
 
-        self.assemble(stmts)?;
+        self.assemble(&prog.stmts)?;
 
         self.writer.seek(SeekFrom::Start(0))?;
 
         let data_start = (risc0::FileHeader::SIZE as u16) + self.inst_count * 2;
         let data_end = data_start + self.data_count;
-        let header = risc0::FileHeader::new(data_start, data_end);
-        self.writer.write(&header.encode())?;
+
+        if let Some(entry_point) = self.entry_point {
+            let header = risc0::FileHeader::new(data_start, data_end, entry_point as u16);
+            header.write_to(&mut self.writer)?;
+        } else {
+            return error!(
+                "could not find an entry point",
+                prog.span.clone()
+            );
+        }
+
 
         Ok(())
     }
@@ -272,6 +283,17 @@ where
 
             Marker(ast::Marker::DotData(..)) => {
                 self.in_text = false;
+            }
+
+            Marker(ast::Marker::Entry(entry_lbl, span)) => {
+                let entry_point = self.get_label(entry_lbl)?;
+                if self.entry_point.is_some() {
+                    return error!(
+                        "entry point already defined",
+                        span.clone()
+                    );
+                }
+                self.entry_point.replace(entry_point);
             }
 
             // Assumes the label has already been accounted for in the first pass.

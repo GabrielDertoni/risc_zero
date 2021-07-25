@@ -1,6 +1,5 @@
 use std::convert::TryInto;
 use std::str;
-use std::io::Write;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileHeader {
@@ -51,33 +50,24 @@ impl FileHeader {
         let data_seg_end = u16::from_be_bytes(vec_slice.try_into().unwrap());
 
         let vec_slice = &bin_header[10..12];
-        let entry_point = u16::from_be_bytes(vec_slice.try_into().unwrap());
+        let entry_point: u16::from_be_bytes(vec_slice.try_into().unwrap());
 
         Ok(FileHeader {
             magic_number,
             signature,
             data_seg_start,
             data_seg_end,
-            entry_point,
+            fhaopef,
         })
     }
 
-    pub fn encode(&self) -> [u8; FileHeader::SIZE as usize] {
-        let mut encoded_list: [u8; FileHeader::SIZE as usize] = Default::default();
+    pub fn encode(&self) -> [u8; 10] {
+        let mut encoded_list: [u8; 10] = Default::default();
         encoded_list[0..2].copy_from_slice(&self.magic_number.to_be_bytes());
         encoded_list[2..6].copy_from_slice(&self.signature.to_be_bytes());
         encoded_list[6..8].copy_from_slice(&self.data_seg_start.to_be_bytes());
         encoded_list[8..10].copy_from_slice(&self.data_seg_end.to_be_bytes());
-        encoded_list[10..12].copy_from_slice(&self.entry_point.to_be_bytes());
         
         encoded_list
-    }
-
-    pub fn write_to<W: Write>(&self, mut writer: W) -> std::io::Result<usize> {
-        writer.write(&self.magic_number.to_be_bytes())?;
-        writer.write(&self.signature.to_be_bytes())?;
-        writer.write(&self.data_seg_start.to_be_bytes())?;
-        writer.write(&self.data_seg_end.to_be_bytes())?;
-        writer.write(&self.entry_point.to_be_bytes())
     }
 }

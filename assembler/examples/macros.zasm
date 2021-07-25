@@ -1,6 +1,8 @@
 
 @include "examples/utils.zasm"
 
+.entry_point main
+
 main:
     la $r2, msg
     jal print_string

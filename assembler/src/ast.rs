@@ -122,6 +122,7 @@ pub enum Label<'a> {
 pub enum Marker<'a> {
     DotData(Span<'a>),
     DotText(Span<'a>),
+    Entry(Label<'a>, Span<'a>),
 }
 
 impl<'a> Label<'a> {
@@ -364,8 +365,9 @@ impl<'a> Display for Expr<'a> {
 impl<'a> Display for Marker<'a> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
-            Marker::DotData(_) => write!(f, ".data"),
-            Marker::DotText(_) => write!(f, ".text"),
+            Marker::DotData(_)     => write!(f, ".data"),
+            Marker::DotText(_)     => write!(f, ".text"),
+            Marker::Entry(lbl, ..) => write!(f, ".entry_point {}", lbl.ident()),
         }
     }
 }

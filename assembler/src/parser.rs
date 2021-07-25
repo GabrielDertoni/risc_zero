@@ -231,14 +231,18 @@ fn parse_inst<'a>(pair: Pair<'a, Rule>, mut cx: Option<&mut Context<'a>>) -> Res
     Ok(Inst { ident, args, span })
 }
 
-fn parse_marker<'a>(pair: Pair<'a, Rule>) -> Result<Marker<'a>> {
+fn parse_marker<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<Marker<'a>> {
     let marker = next!(pair.into_inner());
     let span = marker.as_span();
 
     match marker.as_rule() {
-        Rule::marker_data => Ok(Marker::DotData(span)),
-        Rule::marker_text => Ok(Marker::DotText(span)),
-        _                 => unreachable!(),
+        Rule::marker_data  => Ok(Marker::DotData(span)),
+        Rule::marker_text  => Ok(Marker::DotText(span)),
+        Rule::marker_entry => {
+            let lbl_name = next!(marker.into_inner());
+            Ok(Marker::Entry(parse_lbl_name(lbl_name, cx)?, span))
+        },
+        _                  => unreachable!(),
     }
 }
 
@@ -264,7 +268,7 @@ fn parse_stmt<'a>(pair: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Result<
             Stmt::Define(ident.into(), parse_expr(lit, cx)?)
         }
 
-        Rule::marker => Stmt::Marker(parse_marker(stmt)?),
+        Rule::marker => Stmt::Marker(parse_marker(stmt, cx)?),
 
         Rule::macro_rule => {
             let mut rule_iter = stmt.into_inner();
@@ -451,7 +455,7 @@ mod test {
     macro_rules! parse {
         ($input:expr => $rule:path) => {
             match crate::parser::ZASMParser::parse($rule, $input) {
-                Ok(mut val) => $crate::fst!(val),
+                Ok(mut val) => $crate::next!(val),
                 Err(e)  => {
                     panic!("{}", e);
                 }
@@ -462,7 +466,7 @@ mod test {
     #[test]
     fn test_parse_label() {
         let label = parse!("main:\n" => Rule::label);
-        let label = parse_label(label).unwrap();
+        let label = parse_label(label, None).unwrap();
 
         assert_matches!(
             label,
@@ -536,62 +540,62 @@ mod test {
     }
 
     #[test]
-    fn test_parse_lit() {
-        let lit_label = parse!("loop" => Rule::lit);
-        let lit_label = parse_lit(lit_label, None).unwrap();
+    fn test_parse_expr_lit() {
+        let lit_label = parse!("loop" => Rule::expr);
+        let lit_label = parse_expr(lit_label, None).unwrap();
 
         assert_matches!(
             lit_label,
-            Lit::Expr(Expr::Lbl(Label::Global(
-                Ident {
-                    content: "loop",
-                    ..
-                }
-            )))
+            Expr::Lbl(Label::Global(
+                    Ident {
+                        content: "loop",
+                        ..
+                    }
+            ))
         );
 
-        let lit_chr = parse!("'a'" => Rule::lit);
-        let lit_chr = parse_lit(lit_chr, None).unwrap();
+        let lit_chr = parse!("'a'" => Rule::expr);
+        let lit_chr = parse_expr(lit_chr, None).unwrap();
 
         assert_matches!(
             lit_chr,
-            Lit::Expr(Expr::Chr(Chr {
+            Expr::Chr(Chr {
                 chr: 'a',
                 ..
-            }))
+            })
         );
 
-        let lit_dec = parse!("1234" => Rule::lit);
-        let lit_dec = parse_lit(lit_dec, None).unwrap();
+        let lit_dec = parse!("1234" => Rule::expr);
+        let lit_dec = parse_expr(lit_dec, None).unwrap();
 
         assert_matches!(
             lit_dec,
-            Lit::Expr(Expr::Num(Num {
+            Expr::Num(Num {
                 val: 1234,
                 ..
-            }))
+            })
         );
 
-        let lit_hex = parse!("0x1234" => Rule::lit);
-        let lit_hex = parse_lit(lit_hex, None).unwrap();
+        let lit_hex = parse!("0x1234" => Rule::expr);
+        let lit_hex = parse_expr(lit_hex, None).unwrap();
 
         assert_matches!(
             lit_hex,
-            Lit::Expr(Expr::Num(Num {
+            Expr::Num(Num {
                 val: 0x1234,
                 ..
-            }))
+            })
         );
 
-        let lit_bin = parse!("0b01010101" => Rule::lit);
-        let lit_bin = parse_lit(lit_bin, None).unwrap();
+        let lit_bin = parse!("0b01010101" => Rule::expr);
+        let lit_bin = parse_expr(lit_bin, None).unwrap();
 
         assert_matches!(
             lit_bin,
-            Lit::Expr(Expr::Num(Num {
+            Expr::Num(Num {
                 val: 0b01010101,
                 ..
-            }))
+            })
         );
     }
 
@@ -625,10 +629,10 @@ mod test {
 
         assert_matches!(
             args[1],
-            Arg::Imm(Lit::Expr(Expr::Num(Num {
+            Arg::Imm(Expr::Num(Num {
                 val: 20,
                 ..
-            })))
+            }))
         );
     }
 
@@ -657,10 +661,10 @@ mod test {
                     content: "NUM",
                     ..
                 },
-                Lit::Expr(Expr::Num(Num {
+                Expr::Num(Num {
                     val: 20120,
                     ..
-                }))
+                })
             )
         );
 
@@ -672,7 +676,7 @@ mod test {
         let mac = parse!(input => Rule::stmt);
         let mac = parse_stmt(mac, None).unwrap();
 
-        let (args, _contents) = assert_match_extract!(
+        let args = assert_match_extract!(
             mac,
             Stmt::Macro(Macro {
                 name: Ident {
@@ -680,9 +684,8 @@ mod test {
                     ..
                 },
                 args,
-                body,
                 ..
-            }) => (args, contents)
+            }) => args
         );
 
         assert_matches!(
@@ -766,7 +769,7 @@ mod test {
             let arg_imm = parse!(input => Rule::arg);
             let arg_imm = parse_arg(arg_imm, None).unwrap();
 
-            let lit = assert_match_extract!(arg_imm, Arg::Imm(Lit::Expr(Expr::Num(n))) => n);
+            let lit = assert_match_extract!(arg_imm, Arg::Imm(Expr::Num(n)) => n);
             
             assert_eq!(lit.val, *val);
         }
@@ -777,10 +780,10 @@ mod test {
 
         assert_matches!(
             arg_imm,
-            Arg::Imm(Lit::Expr(Expr::Lbl(Label::Global(Ident {
+            Arg::Imm(Expr::Lbl(Label::Global(Ident {
                 content: "loop",
                 ..
-            }))))
+            })))
         );
 
         let input = "$sp(2)";
@@ -794,10 +797,10 @@ mod test {
                     addr: risc0::Reg::SP,
                     ..
                 },
-                Lit::Expr(Expr::Num(Num {
+                Expr::Num(Num {
                     val: 2,
                     ..
-                }))
+                })
             )
         );
     }
