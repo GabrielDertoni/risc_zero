@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 use std::str;
-use std::io::Write;
+use std::io::{ Write, Read };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileHeader {
@@ -71,6 +71,12 @@ impl FileHeader {
         encoded_list[10..12].copy_from_slice(&self.entry_point.to_be_bytes());
         
         encoded_list
+    }
+
+    pub fn read_from<R: Read>(mut reader: R) -> Result<FileHeader, String> {
+        let mut buf = [0; FileHeader::SIZE as usize];
+        reader.read_exact(&mut buf).map_err(|e| e.to_string())?;
+        FileHeader::decode(&buf)
     }
 
     pub fn write_to<W: Write>(&self, mut writer: W) -> std::io::Result<usize> {
