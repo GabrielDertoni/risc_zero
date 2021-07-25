@@ -256,7 +256,7 @@ where
             "noop" | "not"  | "add"  | "mult" | "mov"  | "div"  | "and"  |
             "or"   | "shl"  | "shr"  | "ceq"  | "clt"  | "addi" | "andi" |
             "lui"  | "jmp"  | "beq"  | "bne"  | "ldb"  | "stb"  | "ldw"  |
-            "stw"  | "int"  | "hlt" => true,
+            "stw"  | "int"  | "hlt"  | "lli" => true,
             _ => false,
         }
     }
@@ -447,7 +447,7 @@ where
             }
 
             // I - type instructions
-            "addi" | "andi" | "lui" => {
+            "addi" | "andi" | "lui" | "lli" => {
                 let (dest, imm) = match inst.args.as_slice() {
                     [Arg::Reg(dest), Arg::Imm(imm)] => {
                         let imm = self.assemble_immediate(imm)?;
@@ -469,6 +469,7 @@ where
                     "addi" => Addi(dest, imm),
                     "andi" => Andi(dest, imm),
                     "lui"  => Lui(dest, imm),
+                    "lli"  => Lli(dest, imm),
                     _      => unreachable!(),
                 };
 
