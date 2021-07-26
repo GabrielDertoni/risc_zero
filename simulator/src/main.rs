@@ -2,13 +2,21 @@
 
 mod reg_bank;
 mod os;
+mod ui;
 
 use architecture_utils::*;
 use os::*;
 use reg_bank::RegBank;
+use ui::draw;
+use termion::input::MouseTerminal;
 use std::fs::File;
 use std::io::Read;
 use clap::clap_app;
+
+use std::io;
+use tui::Terminal;
+use tui::backend::TermionBackend;
+use termion::raw::IntoRawMode;
 
 const MEMORY_SIZE: usize = 65_536;
 
@@ -139,6 +147,14 @@ fn main() -> std::io::Result<()> {
         (about: "Main simulator for risc_zero architecture")
         (@arg BIN: +required "A valid risc_zero binary")
     ).get_matches();
+
+    // Set up application's terminal
+    let stdout = io::stdout().into_raw_mode()?;
+    let stdout = MouseTerminal::from(stdout);
+    let backend = TermionBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+    terminal.clear()?;
+    terminal.draw(|f| draw(f))?;
 
     // Load ZERO binary file
     let bin_filename = matches.value_of("BIN").unwrap();
