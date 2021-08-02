@@ -145,7 +145,7 @@ impl CPUState {
             Instruction::Jmp(reg1) => self.pc = self.reg_bank[reg1] as usize,
 
             // Operational system instructions
-            Instruction::Int => match_syscall(self),
+            Instruction::Int => run_interrupt(&mut self.reg_bank).unwrap(),
             Instruction::Hlt => return false,
         }
         true
