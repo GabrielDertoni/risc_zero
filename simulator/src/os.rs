@@ -1,4 +1,5 @@
 use crate::reg_bank::RegBank;
+use crate::cpu_state::CPUState;
 use std::io;
 use architecture_utils::reg::Reg;
 
@@ -32,5 +33,17 @@ pub fn read_character(reg_bank: &mut RegBank) {
     match trimmed_input.parse::<char>() {
         Ok(n)   => reg_bank[Reg::R1] = n as i16,
         Err(..) => println!("Input is not a valid character."),
+    }
+}
+
+pub fn match_syscall(curr_state: &mut CPUState) {
+    match curr_state.reg_bank[Reg::ACC] {
+        READ_CHAR     => read_character(&mut curr_state.reg_bank),
+        READ_INTEGER  => read_integer(&mut curr_state.reg_bank),
+        PRINT_CHAR    => print!("{}", curr_state.reg_bank[Reg::R1].to_le_bytes()[0] as char),
+        PRINT_DECIMAL => print!("{}", curr_state.reg_bank[Reg::R1]),
+        PRINT_BINARY  => print!("{:b}", curr_state.reg_bank[Reg::R1]),
+        PRINT_HEX     => print!("{:x}", curr_state.reg_bank[Reg::R1]),
+        n             => panic!("Unexpected system call: {}.", n),
     }
 }
