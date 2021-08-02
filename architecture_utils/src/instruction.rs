@@ -303,7 +303,6 @@ impl From<u16> for Instruction {
 
 use std::fmt::{ Display, Formatter };
 
-
 impl Display for Instruction {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         use Instruction::*;

@@ -1,7 +1,5 @@
 pub const REG_COUNT: usize = 16;
 
-// FL: [13b...|NEGATIVE|CARRY|ZERO]
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Reg {
     TMP =  0,
@@ -46,34 +44,10 @@ impl Reg {
             _  => panic!("Not a valid register: {}", addr),
         }
     }
-
-    pub fn to_string(reg: Reg) -> &'static str {
-        use Reg::*;
-
-        match reg {
-            TMP => "TMP",
-            HI => "HI",
-            LO => "LO",
-            SP => "SP",
-            ADR => "ADR",
-            ACC => "ACC",
-            FL => "FL",
-            R1 => "R1",
-            R2 => "R2",
-            R3 => "R3",
-            R4 => "R4",
-            R5 => "R5",
-            R6 => "R6",
-            R7 => "R7",
-            R8 => "R8",
-            R9 => "R9",
-        }
-    }
 }
 
 use std::fmt;
 use std::fmt::{ Display, Formatter };
-
 
 impl<'a> Display for Reg {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
