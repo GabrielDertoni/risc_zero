@@ -152,3 +152,15 @@ impl CPUState {
     }
 }
 
+impl Iterator for CPUState {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.simulate() {
+            Some(self.pc)
+        } else {
+            None
+        }
+    }
+}
+

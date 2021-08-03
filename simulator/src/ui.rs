@@ -2,13 +2,14 @@ use std::fmt::Write;
 
 use tui::style::*;
 use tui::widgets::{Block, BorderType, Borders, List, ListItem, Table, Row};
-use tui::layout::{Layout, Constraint, Direction, Rect};
+use tui::layout::{Alignment, Layout, Constraint, Direction, Rect};
 use tui::backend::Backend;
 use crate::reg::Reg;
 use crate::cpu_state::CPUState;
 use architecture_utils::instruction::Instruction;
 use architecture_utils::bin_header::FileHeader;
 use tui::Frame;
+use std::str;
 
 pub fn draw<B: Backend>(frame: &mut Frame<B>, curr_state: &CPUState) {
     let chunks = Layout::default()
@@ -85,12 +86,23 @@ fn itemize_instructions<'a>(curr_state: &CPUState) -> Vec<ListItem<'a>> {
     let mut counter = 0;
     for instruction in decoded_slice {
         let mut final_string = String::new();
-        write!(final_string, " {:#06x}: ", counter).unwrap();
-        write!(final_string, "{}", instruction).unwrap();
+        write!(final_string, " {:#06x}: {}", counter, instruction).unwrap();
         listitem_vec.push(ListItem::new(final_string));
         counter += 2;
     }
     listitem_vec
+}
+
+fn itemize_emulation<'a>(curr_state: &'a CPUState) -> Vec<ListItem<'a>> {
+    let mut emulation_lines: Vec<ListItem> = Vec::new();
+    let mut first_line_byte: usize = (curr_state.header.data_seg_end as usize - FileHeader::SIZE as usize) + 1;
+    for _ in 0..20 as usize {
+        emulation_lines.push(ListItem::new(
+                str::from_utf8(&curr_state.memory[first_line_byte..first_line_byte+80]).unwrap()
+        ));
+        first_line_byte += 80;
+    }
+    emulation_lines
 }
 
 fn draw_lower_block<B>(frame: &mut Frame<B>, area: Rect, curr_state: &CPUState) 
@@ -108,16 +120,17 @@ where
         )
         .split(area);
 
-    let listitem_vec = itemize_instructions(curr_state);
-    let instruction_list = List::new(listitem_vec)
+    let instruction_vec = itemize_instructions(curr_state);
+    let instruction_list = List::new(instruction_vec)
         .block(Block::default().title("Instructions").borders(Borders::ALL).border_type(BorderType::Rounded))
         .style(Style::default().fg(Color::White))
         .highlight_style(Style::default().add_modifier(Modifier::ITALIC))
         .highlight_symbol(">>");
     frame.render_widget(instruction_list, chunks[0]);
-    let block = Block::default()
-        .title("Emulation")
-        .borders(Borders::ALL)
-        .border_type(BorderType::Rounded);
-    frame.render_widget(block, chunks[1]);
+
+    let emulation_vec = itemize_emulation(curr_state);
+    let emulation = List::new(emulation_vec)
+        .block(Block::default().title("Emulation").borders(Borders::ALL).border_type(BorderType::Rounded))
+        .style(Style::default().fg(Color::White));
+    frame.render_widget(emulation, chunks[1]);
 }

@@ -12,9 +12,12 @@ use termion::input::MouseTerminal;
 use termion::raw::IntoRawMode;
 use clap::clap_app;
 
-use std::io;
+use core::time;
+use std::{io, thread};
 use tui::Terminal;
 use tui::backend::TermionBackend;
+
+const TICK_RATE: u64 = 500;
 
 fn main() -> std::io::Result<()> {
     let matches = clap_app!(risc_zero =>
@@ -35,10 +38,18 @@ fn main() -> std::io::Result<()> {
     let bin_filename = matches.value_of("BIN").unwrap();
 
     // Build simulator from header
-    let mut simulator = CPUState::new(bin_filename).unwrap();
+    let mut curr_state = CPUState::new(bin_filename).unwrap();
+    let number: usize = curr_state.header.data_seg_end as usize - FileHeader::SIZE as usize + 1;
+    curr_state.memory[number..number+4800].fill('#' as u8);
 
     // Executing instructions
-    terminal.draw(|f| draw(f, &simulator))?;
+    loop {
+        terminal.draw(|f| draw(f, &curr_state))?;
+        thread::sleep(time::Duration::from_millis(TICK_RATE));
+        if curr_state.next().is_none() {
+            break;
+        }
+    }
     println!();
 
     Ok(())
