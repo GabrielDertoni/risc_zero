@@ -1,8 +1,9 @@
 use std::fmt::Write;
 
 use tui::style::*;
-use tui::widgets::{Block, BorderType, Borders, List, ListItem, Table, Row};
-use tui::layout::{Alignment, Layout, Constraint, Direction, Rect};
+use tui::text::Spans;
+use tui::widgets::{Block, BorderType, Borders, List, ListItem, Paragraph, Row, Table};
+use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::backend::Backend;
 use crate::reg::Reg;
 use crate::cpu_state::CPUState;
@@ -18,12 +19,14 @@ pub fn draw<B: Backend>(frame: &mut Frame<B>, curr_state: &CPUState) {
         .constraints (
             [
                 Constraint::Length(6),
-                Constraint::Max(1),
+                Constraint::Min(10),
+                Constraint::Length(3),
             ].as_ref()
         )
         .split(frame.size());
     draw_reg_block(frame, chunks[0], curr_state);
     draw_lower_block(frame, chunks[1], curr_state);
+    draw_how_to_block(frame, chunks[2]);
 }
 
 fn draw_reg_block<B>(frame: &mut Frame<B>, area: Rect, curr_state: &CPUState) 
@@ -93,14 +96,17 @@ fn itemize_instructions<'a>(curr_state: &CPUState) -> Vec<ListItem<'a>> {
     listitem_vec
 }
 
-fn itemize_emulation<'a>(curr_state: &'a CPUState) -> Vec<ListItem<'a>> {
-    let mut emulation_lines: Vec<ListItem> = Vec::new();
+// meio gambiarra, preciso arrumar depois
+// resolução 1:3
+fn itemize_emulation<'a>(curr_state: &'a CPUState) -> Vec<Spans<'a>> {
+    let mut emulation_lines: Vec<Spans> = Vec::new();
     let mut first_line_byte: usize = (curr_state.header.data_seg_end as usize - FileHeader::SIZE as usize) + 1;
-    for _ in 0..20 as usize {
-        emulation_lines.push(ListItem::new(
-                str::from_utf8(&curr_state.memory[first_line_byte..first_line_byte+80]).unwrap()
+    emulation_lines.push(Spans::from("\n"));
+    for _ in 0..20 {
+        emulation_lines.push(Spans::from(
+                str::from_utf8(&curr_state.memory[first_line_byte..first_line_byte+60]).unwrap()
         ));
-        first_line_byte += 80;
+        first_line_byte += 60;
     }
     emulation_lines
 }
@@ -129,8 +135,33 @@ where
     frame.render_widget(instruction_list, chunks[0]);
 
     let emulation_vec = itemize_emulation(curr_state);
-    let emulation = List::new(emulation_vec)
+    let emulation = Paragraph::new(emulation_vec)
         .block(Block::default().title("Emulation").borders(Borders::ALL).border_type(BorderType::Rounded))
-        .style(Style::default().fg(Color::White));
+        .style(Style::default().fg(Color::Gray))
+        .alignment(Alignment::Center);
     frame.render_widget(emulation, chunks[1]);
+}
+
+fn draw_how_to_block<B>(frame: &mut Frame<B>, area: Rect)
+where
+    B: Backend
+{
+    let skip_state_msg = " <Right arrow>: Next state";
+    let automatic_skip_msg = "<Up arrow>: Automatic state skip";
+    let close_msg = "<Down arrow>: Quit";
+
+    let how_to = Table::new([
+        Row::new([skip_state_msg, automatic_skip_msg, close_msg]),
+    ])
+    .block(Block::default().title("Guide").borders(Borders::ALL).border_type(BorderType::Rounded))
+    .column_spacing(1)
+    .widths(
+        [
+            Constraint::Percentage(33), 
+            Constraint::Percentage(33), 
+            Constraint::Percentage(33), 
+        ].as_ref()
+    )
+    .style(Style::default().fg(Color::White));
+    frame.render_widget(how_to, area);
 }
