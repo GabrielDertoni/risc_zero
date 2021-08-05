@@ -32,7 +32,6 @@ impl CPUState {
         file.read(&mut memory[TEXT_START..data_start])?;
         file.read(&mut memory[data_start..])?;
         memory[..KEYBOARD_START].fill(b' ');
-        eprintln!("{:?}", memory[..KEYBOARD_START].len());
         memory[KEYBOARD_START..TEXT_START    ].fill(0);
         memory[TEXT_START - 4..TEXT_START - 2].copy_from_slice(&(KEYBOARD_START as u16).to_be_bytes());
         memory[TEXT_START - 2..TEXT_START    ].copy_from_slice(&(KEYBOARD_START as u16).to_be_bytes());
