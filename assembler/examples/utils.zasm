@@ -47,10 +47,11 @@ next_pc:
 
 @macro push %reg {
     stw %reg, $sp(0)
-    addi $sp, -1
+    li  $tmp, 2
+    sub $sp, $tmp
 }
 
 @macro pop %reg {
-    ldw %reg, $sp(1)
-    addi $sp, 1
+    ldw %reg, $sp(2)
+    addi $sp, 2
 }

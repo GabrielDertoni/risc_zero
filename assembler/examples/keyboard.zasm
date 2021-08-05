@@ -6,7 +6,9 @@
 main:
     andi $r4, 0
 .loop:
+    push $r4
     jal  getchar
+    pop  $r4
     li   $r2, '\n'
     bnel $acc, $r2, .put_char
 
@@ -14,6 +16,7 @@ main:
     div  $r4, $r5      ; ($r4 - $r4 % 60) + 60
     sub  $r4, $lo
     add  $r4, $r5
+    jl   .loop
 
 .put_char:
     stb  $acc, $r4(0)
