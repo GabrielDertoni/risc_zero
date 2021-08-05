@@ -26,7 +26,6 @@
 ### Instruções aritméticas:
 
 - [R] `ADD <reg1> <reg2>` - `reg1 += reg2`
-- [I] `ADDI <reg1> <im>` - `reg1 += im`
 - [R] `MULT <reg1> <reg2>` - `reg1 *= reg2`
 - [R] `DIV <reg1> <reg2>` - `HI = reg1 / reg2, LO = reg1 % reg2`
 - [R] `MOV <reg1> <reg2>` - `reg1 := reg2`
@@ -34,7 +33,6 @@
 ### Instruções bit-a-bit:
 
 - [R] `AND <reg1> <reg2>` - `reg1 &= reg2`
-- [I] `ANDI <reg1> <im>` - `reg1 &= im`
 - [R] `OR <reg1> <reg2>` - `reg1 |= reg2`
 - [R] `NOT <reg1>` - `reg1 = ~reg1`
 - [R] `SHL <reg1> <reg2>` - `reg1 <<= reg2`
@@ -57,6 +55,10 @@
 - [M] `STB <reg1> <im> <reg2>` - `*(reg2 + im) := reg1`
 - [M] `LDW <reg1> <im> <reg2>` - `reg1 := *(int16_t *)(reg2 + im)`
 - [M] `STW <reg1> <im> <reg2>` - `*(int16_t *)(reg2 + im) := reg1`
+
+### Instruções imediatas
+- [I] `ANDI <reg1> <im>` - `reg1 &= im`
+- [I] `ADDI <reg1> <im>` - `reg1 += im`
 - [I] `LUI <reg1> <im>` - `reg1 = im << 8`
 - [I] `LLI <reg1> <im>` - `reg1 = im & 0xff`
 
@@ -85,3 +87,9 @@ R    | 4      | 4    | 4    | -  | 4
 I    | 4      | 4    | -    | 8  | -
 M    | 4      | 4    | 4    | 5  | -
 J    | 4      | 4    | -    | -  | 8
+
+
+
+## Ciclo da instrução
+- Na borda de subida do clock, ocorre a leitura da instrução e sua decodificação.
+- Na borda de descida, ocorre o write back.
