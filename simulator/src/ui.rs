@@ -38,7 +38,7 @@ where
             [
                 format!(" {}\t: {:#06x}", Reg::ADR, curr_state.reg_bank[Reg::ADR]),
                 format!("{}\t: {}", Reg::ACC, curr_state.reg_bank[Reg::ACC]),
-                format!("{}\t: {}", Reg::TMP, curr_state.reg_bank[Reg::TMP]),
+                format!("{}\t: {1:} ({1:#06x})", Reg::TMP, curr_state.reg_bank[Reg::TMP]),
                 format!("{}\t: {:#07b}", Reg::FL, curr_state.reg_bank[Reg::FL]),
             ]
         ),
@@ -151,6 +151,7 @@ where
 
     let output_string = String::from_utf8(io_device.output.clone()).unwrap();
     let console_vec: Vec<_> = io_device.log.iter()
+        .rev()
         .map(|line| ListItem::new(line.as_str()))
         .chain(std::iter::once(ListItem::new(output_string)))
         .collect();

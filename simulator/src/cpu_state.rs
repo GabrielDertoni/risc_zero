@@ -38,7 +38,7 @@ impl CPUState {
 
         // Setup initial register bank
         let mut reg_bank = RegBank::new();
-        reg_bank[Reg::SP] = (memory.len() - 1) as i16;
+        reg_bank[Reg::SP] = (memory.len() - 2) as i16;
 
         // Points PC to the main label
         let pc = header.entry_point as usize;
@@ -53,7 +53,7 @@ impl CPUState {
         )
     }
 
-    pub fn simulate<IO: Read + Write>(&mut self, io_device: IO) -> std::io::Result<bool> {
+    pub fn simulate<IO: Read + Write>(&mut self, mut io_device: IO) -> std::io::Result<bool> {
         let inst_word = u16::from_be_bytes([self.memory[self.pc], self.memory[self.pc+1]]);        
         let curr_instruction = Instruction::decode(inst_word).unwrap();
         self.pc += 2;
@@ -136,7 +136,7 @@ impl CPUState {
                 self.memory[memory_final_address] = self.reg_bank[reg1] as u8;
             }
             Instruction::Ldw(reg1, reg2, immediate) => {
-                let memory_final_address = (self.reg_bank[reg2] + immediate as i16) as usize;
+                let memory_final_address = ((self.reg_bank[reg2] as u16 as i32) + immediate as i32) as usize;
                 let upper = self.memory[memory_final_address];
                 let lower = self.memory[memory_final_address + 1];
 
@@ -144,7 +144,9 @@ impl CPUState {
             }
             Instruction::Stw(reg1, reg2, immediate) => {
                 let be_vec = self.reg_bank[reg1].to_be_bytes();
-                let addr = (self.reg_bank[reg2] + immediate as i16) as usize;
+
+                // TODO: Find a better way of doing this!
+                let addr = ((self.reg_bank[reg2] as u16 as i32) + immediate as i32) as usize;
                 self.memory[addr..addr + 2].copy_from_slice(&be_vec);
             }
             Instruction::Lli(reg1, immediate) => self.reg_bank[reg1] = i16::from_be_bytes([0x00, immediate]),
