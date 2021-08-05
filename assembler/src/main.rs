@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         (about: "A assembler for the ZASM assembly language")
         (@arg SOURCE: +required "The ZASM source file to compile")
         (@arg output: -o --output +takes_value "File to output the assembled binary")
-        (@arg offset: --offset "Memory offset")
+        (@arg offset: --offset +takes_value "Memory offset")
     ).get_matches();
 
     // Ok, SOURCE is required.
