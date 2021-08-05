@@ -202,13 +202,20 @@ where
 
         for stmt in stmts {
             match stmt {
-                Marker(..)   |
-                Define(..)   => (),
+                Marker(..)   => (),
 
                 Include(s)   => {
                     let src = self.add_src(s.content)?;
                     let prog = parse_src(src)?;
                     self.assemble(&prog.stmts)?;
+                }
+
+                Define(name, lit) => {
+                    let old = self.defines.insert(name.content, lit.clone());
+
+                    if old.is_some() {
+                        return error!("macro defined twice", name.span());
+                    }
                 }
 
                 Macro(mac)   => {
@@ -244,6 +251,7 @@ where
 
                         let stmts = parse_stmts(mac.body.clone(), Some(&mut self.macro_ctx))?;
                         self.find_labels_and_macros(&stmts, offset)?;
+                        self.macro_ctx.remove_macro_args_in_depth();
                         self.macro_ctx.macro_call_stack.pop();
                     }
                 }
@@ -258,10 +266,10 @@ where
 
     fn is_valid_instruction(&self, name: &str) -> bool {
         match name {
-            "noop" | "not"  | "add"  | "mult" | "mov"  | "div"  | "and"  |
-            "or"   | "shl"  | "shr"  | "ceq"  | "clt"  | "addi" | "andi" |
-            "lui"  | "jmp"  | "beq"  | "bne"  | "ldb"  | "stb"  | "ldw"  |
-            "stw"  | "int"  | "hlt"  | "lli" => true,
+            "noop" | "not"  | "add"  | "sub"  | "mult" | "mov"  | "div"  |
+            "and"  | "or"   | "shl"  | "shr"  | "ceq"  | "clt"  | "addi" |
+            "andi" | "lui"  | "jmp"  | "beq"  | "bne"  | "ldb"  | "stb"  |
+            "ldw"  | "stw"  | "int"  | "hlt"  | "lli" => true,
             _ => false,
         }
     }
@@ -308,9 +316,6 @@ where
 
             Label(..) => (),
 
-            // Assumes macros have already been resolved
-            Macro(..)  => (),
-
             Inst(inst) => {
                 if !self.in_text {
                     return error!(
@@ -343,14 +348,9 @@ where
                 self.data_count += self.emit_string(s.content, s.span())? as u16;
             }
 
-            Define(name, lit) => {
-                let old = self.defines.insert(name.content, lit.clone());
-
-                if old.is_some() {
-                    return error!("macro defined twice", name.span());
-                }
-            }
-
+            // Assumes macros have already been resolved
+            Macro(..)  |
+            Define(..) |
             Include(..) => (),
         }
 
