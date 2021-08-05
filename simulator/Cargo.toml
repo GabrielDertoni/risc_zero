@@ -10,3 +10,5 @@ architecture_utils = { path = "../architecture_utils" }
 clap = "2.33"
 tui = "0.15"
 termion = "1.5"
+rand = "0.8.4"
+
