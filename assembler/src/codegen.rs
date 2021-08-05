@@ -46,6 +46,7 @@ impl<'a> LabelName<'a> {
 
 pub struct Assembler<'a, W> {
     writer: W,
+    offset: u16,
     sources: Vec<Box<str>>,
     parent: Option<ast::Ident<'a>>,
     labels: HashMap<LabelName<'a>, LabelDef<'a>>,
@@ -62,9 +63,10 @@ impl<'a, W> Assembler<'a, W>
 where
     W: Write + Seek,
 {
-    pub fn new(writer: W) -> Assembler<'a, W> {
+    pub fn new(writer: W, offset: u16) -> Assembler<'a, W> {
         Assembler {
             writer,
+            offset,
             sources: Vec::new(),
             parent: None,
             labels: HashMap::new(),
@@ -638,7 +640,7 @@ where
         };
 
         if let Some(def) = self.labels.get(&lbl_name).cloned() {
-            Ok(def.addr)
+            Ok(def.addr + self.offset as usize)
         } else {
             error!("label not defined", lbl.span())
         }

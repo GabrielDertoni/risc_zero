@@ -25,6 +25,12 @@
     bne $tmp
 }
 
+@macro bne_reg %reg1, %reg2, #label {
+    la  $tmp, #label
+    ceq %reg1, %reg2
+    bne $tmp
+}
+
 @macro jal #label {
     la $adr, next_pc
     jl #label
