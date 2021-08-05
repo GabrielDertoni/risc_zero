@@ -95,7 +95,7 @@ impl Instruction {
             7 | 8 | 9 | 10 => {
                 let reg1 = Reg::from_addr(((code >> 8) & 0xf) as u8);
                 let reg2 = Reg::from_addr(((code >> 4) & 0xf) as u8);
-                let immediate = (code & 0b11111) as u8;
+                let immediate = (code & 0b1111) as u8;
                 
                 match opcode {
                     7  => Ldb(reg1, reg2, immediate),
