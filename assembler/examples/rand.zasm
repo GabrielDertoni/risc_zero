@@ -1,0 +1,24 @@
+@include "assembler/examples/utils.zasm"
+
+.entry_point main
+
+main:
+    li $r2, 10
+
+.loop:
+
+    ; get a random number
+    li $acc, 7
+    int
+
+    ; print the number
+    mov $r1, $acc
+    li $acc, 4
+    int
+
+    putc '\n'
+
+    subi $r2, 1
+    bnel $r2, $r9, .loop
+
+    hlt

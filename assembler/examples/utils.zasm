@@ -55,3 +55,9 @@ next_pc:
     ldw %reg, $sp(2)
     addi $sp, 2
 }
+
+
+@macro subi %reg1, #imm {
+    li $tmp, #imm
+    sub %reg1, $tmp
+}

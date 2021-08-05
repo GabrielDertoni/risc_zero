@@ -149,9 +149,9 @@ where
 
     let output_string = String::from_utf8(io_device.output.clone()).unwrap();
     let console_vec: Vec<_> = io_device.log.iter()
-        .rev()
         .map(|line| ListItem::new(line.as_str()))
         .chain(std::iter::once(ListItem::new(output_string)))
+        .rev()
         .collect();
 
     let console = List::new(console_vec)
