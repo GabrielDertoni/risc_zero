@@ -43,7 +43,7 @@ impl<'a> From<Pair<'a, Rule>> for Ident<'a> {
 #[derive(Debug, Clone)]
 pub struct Context<'a> {
     pub macro_args: BTreeMap<(&'a str, usize), Arg<'a>>,
-    pub macro_call_stack: Vec<Span<'a>>,
+    pub macro_call_stack: Vec<(Span<'a>, String)>,
 }
 
 impl<'a> Context<'a> {
@@ -82,8 +82,8 @@ impl<'a> Context<'a> {
     pub fn traceback(&self) -> String {
         let mut result = String::new();
         for trace in self.macro_call_stack.iter().rev() {
-            let (line, col) = trace.start_pos().line_col();
-            writeln!(result, "at {}:{}", line, col).unwrap();
+            let (line, col) = trace.0.start_pos().line_col();
+            writeln!(result, "at {}:{}:{}", trace.1, line, col).unwrap();
         }
         result
     }
@@ -443,8 +443,11 @@ pub fn parse_zasm<'a>(zasm: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) -> Res
     })
 }
 
-pub fn parse_src(program: &str) -> Result<Prog> {
-    let zasm = next!(ZASMParser::parse(Rule::zasm, program)?);
+pub fn parse_src<'a>(program: &'a str, path: &str) -> Result<Prog<'a>> {
+    let zasm = next!(
+        ZASMParser::parse(Rule::zasm, program)
+            .map_err(|e| e.with_path(path))?
+    );
     parse_zasm(zasm, None)
 }
 

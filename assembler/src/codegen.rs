@@ -46,6 +46,7 @@ impl<'a> LabelName<'a> {
 pub struct Assembler<'a, W> {
     writer: W,
     offset: u16,
+    curr_source: Option<String>,
     sources: HashMap<String, Box<str>>,
     parent: Option<ast::Ident<'a>>,
     labels: HashMap<LabelName<'a>, LabelDef<'a>>,
@@ -66,6 +67,7 @@ where
         Assembler {
             writer,
             offset,
+            curr_source: None,
             sources: HashMap::new(),
             parent: None,
             labels: HashMap::new(),
@@ -113,7 +115,8 @@ where
                     c     =>
                         return error!(
                             format!("invalid escape sequence '\\{}'", c as char),
-                            span
+                            span,
+                            self.get_source_name()
                         ),
                 }
             } else {
@@ -162,13 +165,15 @@ where
         }
     }
 
-    pub fn assemble_src(&mut self, src_file: &str) -> Result<()> {
+    pub fn assemble_program(&mut self, src_file: &str) -> Result<()> {
+        self.curr_source.replace(src_file.to_string());
         if let Some(src) = self.add_src(src_file)? {
-            let prog = parse_src(src)?;
+            let prog = parse_src(src, self.get_source_name())?;
             self.assemble_main(&prog)?;
         }
         Ok(())
     }
+
 
     fn assemble_main(&mut self, prog: &ast::Prog<'a>) -> Result<()> {
         // Write a bunch of zeros so that we can go past the header position
@@ -188,13 +193,27 @@ where
         } else {
             return error!(
                 "could not find an entry point",
-                prog.span.clone()
+                prog.span.clone(),
+                self.get_source_name()
             );
         }
 
 
         Ok(())
     }
+
+    fn assemble_src(&mut self, src_file: &str, offset: &mut usize) -> Result<()> {
+        let old = self.curr_source.replace(src_file.to_string());
+
+        if let Some(src) = self.add_src(src_file)? {
+            let prog = parse_src(src, self.get_source_name())?;
+            self.assemble(&prog.stmts, offset)?;
+        }
+
+        self.curr_source = old;
+        Ok(())
+    }
+
 
     fn assemble(&mut self, stmts: &[ast::Stmt<'a>], offset: &mut usize) -> Result<()> {
         self.find_labels_and_macros(stmts, offset)?;
@@ -213,17 +232,14 @@ where
                 Marker(..)   => (),
 
                 Include(s)   => {
-                    if let Some(src) = self.add_src(s.content)? {
-                        let prog = parse_src(src)?;
-                        self.assemble(&prog.stmts, offset)?;
-                    }
+                    self.assemble_src(s.content, offset)?;
                 }
 
                 Define(name, lit) => {
                     let old = self.defines.insert(name.content, lit.clone());
 
                     if old.is_some() {
-                        return error!("macro defined twice", name.span());
+                        return error!("macro defined twice", name.span(), self.get_source_name());
                     }
                 }
 
@@ -239,7 +255,7 @@ where
                     } else if self.macros.contains_key(&inst.ident.content) {
                         // TODO: this is not very efficient, fix it!
 
-                        self.macro_ctx.macro_call_stack.push(inst.span());
+                        self.macro_ctx.macro_call_stack.push((inst.span(), self.get_source_name().to_string()));
                         let mac = self.macros.get(&inst.ident.content).unwrap();
 
                         if mac.args.len() != inst.args.len() {
@@ -250,7 +266,8 @@ where
                                     inst.args.len(),
                                     self.macro_ctx.traceback()
                                 ),
-                                inst.span()
+                                inst.span(),
+                                self.get_source_name()
                             );
                         }
 
@@ -299,7 +316,8 @@ where
                 if !self.in_text {
                     return error!(
                         "unexpected .text in data segment",
-                        span.clone()
+                        span.clone(),
+                        self.get_source_name()
                     );
                 }
             }
@@ -313,7 +331,8 @@ where
                 if self.entry_point.is_some() {
                     return error!(
                         "entry point already defined",
-                        span.clone()
+                        span.clone(),
+                        self.get_source_name()
                     );
                 }
                 self.entry_point.replace(entry_point as usize);
@@ -330,7 +349,8 @@ where
                 if !self.in_text {
                     return error!(
                         "unexpected instruction in .data segment",
-                        inst.span()
+                        inst.span(),
+                        self.get_source_name()
                     );
                 }
                 self.assemble_inst(inst)?;
@@ -340,7 +360,8 @@ where
                 if self.in_text {
                     return error!(
                         "unexpected expression in .text segment",
-                        expr.span()
+                        expr.span(),
+                        self.get_source_name()
                     );
                 }
                 // Emits a word
@@ -352,7 +373,8 @@ where
                 if self.in_text {
                     return error!(
                         "unexpected string in .text segment",
-                        s.span()
+                        s.span(),
+                        self.get_source_name()
                     );
                 }
                 self.data_count += self.emit_string(s.content, s.span())? as u16;
@@ -373,7 +395,7 @@ where
         if val <= u16::MAX as i32 && val >= i16::MIN as i32 {
             self.emit_word(val as u16)?;
         } else {
-            return error!("literal must fit in one word", expr.span());
+            return error!("literal must fit in one word", expr.span(), self.get_source_name());
         }
 
         Ok(())
@@ -398,7 +420,8 @@ where
                             "expected a register argument\nmacro traceback:\n{}",
                             self.macro_ctx.traceback()
                         ),
-                        span
+                        span,
+                        self.get_source_name()
                     ),
                     _ => return error!(
                         format!(
@@ -406,7 +429,8 @@ where
                             inst.args.len(),
                             self.macro_ctx.traceback()
                         ),
-                        span
+                        span,
+                        self.get_source_name()
                     ),
                 };
 
@@ -422,7 +446,8 @@ where
                             "expected register arguments\nmacro traceback:\n{}",
                             self.macro_ctx.traceback()
                         ),
-                        span
+                        span,
+                        self.get_source_name()
                     ),
                     _ => return error!(
                        format!(
@@ -430,7 +455,8 @@ where
                            inst.args.len(),
                            self.macro_ctx.traceback()
                        ),
-                       span
+                       span,
+                       self.get_source_name()
                     ),
                 };
 
@@ -460,7 +486,8 @@ where
                             "expected argument to be a register\nmacro traceback:\n{}",
                             self.macro_ctx.traceback()
                         ),
-                        span
+                        span,
+                        self.get_source_name()
                     ),
                     _ => return error!(
                         format!(
@@ -468,7 +495,8 @@ where
                             inst.args.len(),
                             self.macro_ctx.traceback()
                         ),
-                        span
+                        span,
+                        self.get_source_name()
                     ),
                 };
 
@@ -499,7 +527,8 @@ where
                             "expected a register and an immediate value as arguments\nmacro traceback:\n{}",
                             self.macro_ctx.traceback()
                         ),
-                        span
+                        span,
+                        self.get_source_name()
                     ),
 
                     _ => return error!(
@@ -508,7 +537,8 @@ where
                             inst.args.len(),
                             self.macro_ctx.traceback()
                         ),
-                        span
+                        span,
+                        self.get_source_name()
                     ),
                 };
 
@@ -534,7 +564,8 @@ where
                             "expected first register and register immediate arguments\nmacro traceback:\n{}",
                             self.macro_ctx.traceback()
                         ),
-                        span
+                        span,
+                        self.get_source_name()
                     ),
 
                     _ => return error!(
@@ -543,7 +574,8 @@ where
                             inst.args.len(),
                             self.macro_ctx.traceback()
                         ),
-                        span
+                        span,
+                        self.get_source_name()
                     ),
                 };
 
@@ -581,7 +613,8 @@ where
                             inst.args.len(),
                             self.macro_ctx.traceback()
                         ),
-                        span
+                        span,
+                        self.get_source_name()
                     );
                 }
 
@@ -602,14 +635,14 @@ where
                     self.macro_ctx.insert_macro_arg(macro_arg.content, argument);
                 }
 
-                self.macro_ctx.macro_call_stack.push(span);
+                self.macro_ctx.macro_call_stack.push((span, self.get_source_name().to_string()));
                 let stmts = parse_stmts(mac.body.clone(), Some(&mut self.macro_ctx))?;
                 self.assemble_stmts(&stmts)?;
                 self.macro_ctx.remove_macro_args_in_depth();
                 self.macro_ctx.macro_call_stack.pop();
             }
 
-            _ => return error!("instruction not supported", span),
+            _ => return error!("instruction not supported", span, self.get_source_name()),
         }
         Ok(())
     }
@@ -620,7 +653,7 @@ where
         if val <= u8::MAX as i32 && val >= i8::MIN as i32 {
             Ok(val as u8)
         } else {
-            error!("literal must fit in one byte", expr.span())
+            error!("literal must fit in one byte", expr.span(), self.get_source_name())
         }
     }
 
@@ -634,7 +667,7 @@ where
 
             Expr::Chr(Chr { chr, .. }) => {
                 if !chr.is_ascii() {
-                    return error!("only ASCII characters are allowed", span);
+                    return error!("only ASCII characters are allowed", span, self.get_source_name());
                 } else {
                     Ok(*chr as i32)
                 }
@@ -673,7 +706,7 @@ where
         let lbl_name = match lbl {
             Label::Local(local) => {
                 if self.parent.is_none() {
-                    return error!("local labels are only allowed inside parent labels", span);
+                    return error!("local labels are only allowed inside parent labels", span, self.get_source_name());
                 }
 
                 let parent = self.parent.as_ref().map(|lbl| lbl.content);
@@ -705,7 +738,7 @@ where
                     return Ok(self.assemble_expr(def)? as i32)
                 }
             }
-            error!("label not defined", lbl.span())
+            error!("label not defined", lbl.span(), self.get_source_name())
         }
     }
 
@@ -718,7 +751,7 @@ where
         let lbl_name = match lbl {
             Label::Local(local) => {
                 if self.parent.is_none() {
-                    return error!("local labels are only allowed inside parent labels", span);
+                    return error!("local labels are only allowed inside parent labels", span, self.get_source_name());
                 }
 
                 let parent = self.parent.as_ref().map(|lbl| lbl.content);
@@ -737,12 +770,19 @@ where
         };
 
         match self.labels.entry(lbl_name) {
-            Occupied(_)   => error!("label defined twice", lbl.span()),
+            Occupied(_)   => error!("label defined twice", lbl.span(), self.get_source_name()),
             Vacant(entry) => {
                 entry.insert(LabelDef::new(addr, lbl.span()));
                 Ok(())
             },
         }
+    }
+
+    fn get_source_name(&self) -> &str {
+        self.curr_source
+            .as_ref()
+            .map(String::as_str)
+            .unwrap_or("???")
     }
 }
 

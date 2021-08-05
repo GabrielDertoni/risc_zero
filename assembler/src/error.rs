@@ -22,6 +22,19 @@ macro_rules! error {
             ).into()
         )
     };
+
+    ($msg:expr, $span:expr, $source:expr) => {
+        Err(
+            pest::error::Error::new_from_span(
+                pest::error::ErrorVariant::CustomError {
+                    message: $msg.into()
+                },
+                $span
+            )
+            .with_path($source.into())
+            .into()
+        )
+    };
 }
 
 impl From<pest::error::Error<ParserRule>> for Error {

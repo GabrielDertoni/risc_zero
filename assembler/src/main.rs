@@ -38,7 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file = fs::File::create(out)?;
     let mut assembler = Assembler::new(file, offset);
 
-    assembler.assemble_src(src_file)
+    assembler.assemble_program(src_file)
         .unwrap_or_else(|err| {
             eprintln!("{}", err);
         });
