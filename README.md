@@ -93,3 +93,8 @@ J    | 4      | 4    | -    | -  | 8
 ## Ciclo da instrução
 - Na borda de subida do clock, ocorre a leitura da instrução e sua decodificação.
 - Na borda de descida, ocorre o write back.
+
+
+## Diagrama
+
+![Diagrama da Arquitetura](assets/Arquitetura.png "Diagrama da Arquitetura")
