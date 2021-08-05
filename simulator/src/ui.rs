@@ -1,5 +1,3 @@
-use std::str;
-
 use tui::style::*;
 use tui::text::{ Spans, Text };
 use tui::widgets::{ Block, BorderType, Borders, List, ListItem, Paragraph, Row, Table };
@@ -10,9 +8,9 @@ use architecture_utils::instruction::Instruction;
 use architecture_utils::bin_header::FileHeader;
 use crate::reg::Reg;
 use crate::cpu_state::{ CPUState, TEXT_START, SCREEN_HEIGHT, SCREEN_WIDTH };
-use crate::io_device::IODevice;
+use crate::io_device::Console;
 
-pub fn draw<B: Backend>(frame: &mut Frame<B>, curr_state: &CPUState, io_device: &IODevice) {
+pub fn draw<B: Backend>(frame: &mut Frame<B>, curr_state: &CPUState, io_device: &Console) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(2)
@@ -118,7 +116,7 @@ fn itemize_emulation(curr_state: &CPUState) -> Vec<Spans> {
     emulation_lines
 }
 
-fn draw_lower_block<B>(frame: &mut Frame<B>, area: Rect, curr_state: &CPUState, io_device: &IODevice) 
+fn draw_lower_block<B>(frame: &mut Frame<B>, area: Rect, curr_state: &CPUState, io_device: &Console) 
 where 
     B: Backend,
 {

@@ -19,13 +19,13 @@
 
 @macro beql %reg1, %reg2, #label {
     la  $tmp, #label
-    ceq %reg1, %reg2
+    cmp %reg1, %reg2
     beq $tmp
 }
 
 @macro bnel %reg1, %reg2, #label {
     la  $tmp, #label
-    ceq %reg1, %reg2
+    cmp %reg1, %reg2
     bne $tmp
 }
 

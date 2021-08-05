@@ -21,7 +21,7 @@ use tui::backend::TermionBackend;
 
 // Local
 use ui::draw;
-use io_device::IODevice;
+use io_device::Console;
 use event::{Config, Events, Event};
 use cpu_state::CPUState;
 
@@ -44,7 +44,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Build simulator from header
     let mut curr_state = CPUState::new(bin_filename).unwrap();
 
-    let mut io_device = IODevice::new();
+    let mut console = Console::new();
 
     // Set up application's terminal
     let stdout = io::stdout().into_raw_mode()?;
@@ -67,7 +67,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             Event::Input(key) => match key {
                 Key::Up => continuous_execution = !continuous_execution,
                 Key::Right if !continuous_execution => {
-                    if !curr_state.simulate(&mut io_device)? {
+                    if !curr_state.simulate(&mut console)? {
                         break;
                     }
                 }
@@ -82,14 +82,14 @@ fn main() -> Result<(), Box<dyn Error>> {
             Event::Tick => {
                 if continuous_execution {
                     for _ in 0..8 {
-                        if !curr_state.simulate(&mut io_device)? {
+                        if !curr_state.simulate(&mut console)? {
                             break 'outer;
                         }
                     }
                 }
 
                 if tick_count % 11 == 0 {
-                    terminal.draw(|f| draw(f, &curr_state, &mut io_device))?;
+                    terminal.draw(|f| draw(f, &curr_state, &mut console))?;
                 }
 
                 tick_count += 1;

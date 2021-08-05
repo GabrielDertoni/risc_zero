@@ -20,7 +20,7 @@ print_string:
 
     andi $acc, 0
     la   $tmp, .loop_end
-    ceq  $acc, $r1
+    cmp  $acc, $r1
     beq  $tmp
 
     lli  $acc, 1            ; Value for putchar software interrupt

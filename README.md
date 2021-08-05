@@ -42,12 +42,15 @@
 
 - [J] `BEQ <reg1>` - `if (!ZERO) goto reg1`
 - [J] `BNE <reg1>` - `if (ZERO) goto reg1`
+- [J] `BLT <reg1>`
+- [J] `BLE <reg1>`
+- [J] `BGT <reg1>`
+- [J] `BGE <reg1>`
 - [J] `JMP <reg1>` - `goto reg1`
 
 ### Instruções de comparação:
 
-- [R] `CEQ <reg1> <reg2>` - `ZERO := !(reg1 == reg2)`
-- [R] `CLT <reg1> <reg2>` - `ZERO := !(reg1 < reg2)`
+- [R] `CMP <reg1> <reg2>` - `ZERO := (reg1 == reg2), NEG := (reg1 < reg2)`
 
 ### Instruções de acesso à memória:
 

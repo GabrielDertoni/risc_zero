@@ -53,17 +53,19 @@ impl CPUState {
         )
     }
 
-    pub fn simulate<IO: Read + Write>(&mut self, mut io_device: IO) -> std::io::Result<bool> {
+    pub fn simulate<IO: Read + Write>(&mut self, io_device: IO) -> std::io::Result<bool> {
+        use Instruction::*;
+
         let inst_word = u16::from_be_bytes([self.memory[self.pc], self.memory[self.pc+1]]);        
         let curr_instruction = Instruction::decode(inst_word).unwrap();
         self.pc += 2;
 
         match curr_instruction {
-            Instruction::Noop => (),
+            Noop => (),
 
             // Arithmetic instructions
-            Instruction::Mov(reg1, reg2)  => self.reg_bank[reg1] = self.reg_bank[reg2],
-            Instruction::Add(reg1, reg2)  => {
+            Mov(reg1, reg2)  => self.reg_bank[reg1] = self.reg_bank[reg2],
+            Add(reg1, reg2)  => {
                 let (result, is_overflow) = self.reg_bank[reg1].overflowing_add(self.reg_bank[reg2]);
                 self.reg_bank[reg1] = result;
 
@@ -71,7 +73,7 @@ impl CPUState {
                 self.reg_bank.set_zero_flag(result == 0);
                 self.reg_bank.set_negative_flag(result.is_negative());
             }
-            Instruction::Sub(reg1, reg2) => {
+            Sub(reg1, reg2) => {
                 let (result, is_overflow) = self.reg_bank[reg1].overflowing_sub(self.reg_bank[reg2]);
                 self.reg_bank[reg1] = result;
 
@@ -79,7 +81,7 @@ impl CPUState {
                 self.reg_bank.set_zero_flag(result == 0);
                 self.reg_bank.set_negative_flag(result.is_negative());
             }
-            Instruction::Addi(reg1, imm)  => {
+            Addi(reg1, imm)  => {
                 let (result, is_overflow) = self.reg_bank[reg1].overflowing_add(imm as i16);
                 self.reg_bank[reg1] = result;
 
@@ -87,7 +89,7 @@ impl CPUState {
                 self.reg_bank.set_zero_flag(result == 0);
                 self.reg_bank.set_negative_flag(result.is_negative());
             }
-            Instruction::Mult(reg1, reg2) => {
+            Mult(reg1, reg2) => {
                 let (result, is_overflow) = self.reg_bank[reg1].overflowing_mul(self.reg_bank[reg2]);
                 self.reg_bank[reg1] = result;
 
@@ -95,7 +97,7 @@ impl CPUState {
                 self.reg_bank.set_zero_flag(result == 0);
                 self.reg_bank.set_negative_flag(result.is_negative());
             }
-            Instruction::Div(reg1, reg2)  => {
+            Div(reg1, reg2)  => {
                 let (result, is_overflow) = self.reg_bank[reg1].overflowing_div_euclid(self.reg_bank[reg2]);
                 self.reg_bank[Reg::HI] = result;
 
@@ -109,65 +111,68 @@ impl CPUState {
             },
             
             // Logical operators instructions
-            Instruction::And(reg1, reg2)       => self.reg_bank[reg1] &=  self.reg_bank[reg2],
-            Instruction::Andi(reg1, immediate) => self.reg_bank[reg1] &=  immediate as i16,
-            Instruction::Or(reg1, reg2)        => self.reg_bank[reg1] |=  self.reg_bank[reg2],
-            Instruction::Not(reg1)             => self.reg_bank[reg1] =  !self.reg_bank[reg1],
-            Instruction::Shl(reg1, reg2)       => self.reg_bank[reg1] <<= self.reg_bank[reg2],
-            Instruction::Shr(reg1, reg2)       => self.reg_bank[reg1] >>= self.reg_bank[reg2],
+            And(reg1, reg2)       => self.reg_bank[reg1] &=  self.reg_bank[reg2],
+            Andi(reg1, immediate) => self.reg_bank[reg1] &=  immediate as i16,
+            Or(reg1, reg2)        => self.reg_bank[reg1] |=  self.reg_bank[reg2],
+            Not(reg1)             => self.reg_bank[reg1] =  !self.reg_bank[reg1],
+            Shl(reg1, reg2)       => self.reg_bank[reg1] <<= self.reg_bank[reg2],
+            Shr(reg1, reg2)       => self.reg_bank[reg1] >>= self.reg_bank[reg2],
 
             // Comparators
-            Instruction::Ceq(reg1, reg2) => {
-                let comparator_result: bool = self.reg_bank[reg1] == self.reg_bank[reg2];
-                self.reg_bank.set_equal_flag(comparator_result);
-            }
-            Instruction::Clt(reg1, reg2) => {
-                let comparator_result: bool = self.reg_bank[reg1] < self.reg_bank[reg2];
-                self.reg_bank.set_less_flag(comparator_result);
+            Cmp(reg1, reg2) => {
+                self.reg_bank.set_zero_flag(self.reg_bank[reg1] == self.reg_bank[reg2]);
+                self.reg_bank.set_negative_flag(self.reg_bank[reg1] < self.reg_bank[reg2]);
             }
 
             // Memory related instructions
-            Instruction::Ldb(reg1, reg2, immediate) => {
+            Ldb(reg1, reg2, immediate) => {
                 let memory_final_address = (self.reg_bank[reg2] + immediate as i16) as usize;
                 self.reg_bank[reg1] = self.memory[memory_final_address] as i16;
             }
-            Instruction::Stb(reg1, reg2, immediate) => {
+            Stb(reg1, reg2, immediate) => {
                 let memory_final_address = (self.reg_bank[reg2] + immediate as i16) as usize;
                 self.memory[memory_final_address] = self.reg_bank[reg1] as u8;
             }
-            Instruction::Ldw(reg1, reg2, immediate) => {
+            Ldw(reg1, reg2, immediate) => {
                 let memory_final_address = ((self.reg_bank[reg2] as u16 as i32) + immediate as i32) as usize;
                 let upper = self.memory[memory_final_address];
                 let lower = self.memory[memory_final_address + 1];
 
                 self.reg_bank[reg1] = i16::from_be_bytes([upper, lower]);
             }
-            Instruction::Stw(reg1, reg2, immediate) => {
+            Stw(reg1, reg2, immediate) => {
                 let be_vec = self.reg_bank[reg1].to_be_bytes();
 
                 // TODO: Find a better way of doing this!
                 let addr = ((self.reg_bank[reg2] as u16 as i32) + immediate as i32) as usize;
                 self.memory[addr..addr + 2].copy_from_slice(&be_vec);
             }
-            Instruction::Lli(reg1, immediate) => self.reg_bank[reg1] = i16::from_be_bytes([0x00, immediate]),
-            Instruction::Lui(reg1, immediate) => self.reg_bank[reg1] = i16::from_be_bytes([immediate, 0x00]),
+            Lui(reg1, immediate) => self.reg_bank[reg1] = i16::from_be_bytes([immediate, 0x00]),
 
             // Branch instructions
-            Instruction::Beq(reg1) => {
-                if self.reg_bank.get_equal_flag() {
-                    self.pc = self.reg_bank[reg1] as usize;
-                }
+            Jmp(reg1) => self.pc = self.reg_bank[reg1] as usize,
+            Beq(reg1) => if self.reg_bank.get_zero_flag() {
+                self.pc = self.reg_bank[reg1] as usize;
             }
-            Instruction::Bne(reg1) => {
-                if !self.reg_bank.get_equal_flag() {
-                    self.pc = self.reg_bank[reg1] as usize;
-                }
+            Bne(reg1) => if !self.reg_bank.get_zero_flag() {
+                self.pc = self.reg_bank[reg1] as usize;
             }
-            Instruction::Jmp(reg1) => self.pc = self.reg_bank[reg1] as usize,
+            Blt(reg1) => if self.reg_bank.get_negative_flag() {
+                self.pc = self.reg_bank[reg1] as usize;
+            }
+            Ble(reg1) => if self.reg_bank.get_negative_flag() || self.reg_bank.get_zero_flag() {
+                self.pc = self.reg_bank[reg1] as usize;
+            }
+            Bgt(reg1) => if !self.reg_bank.get_negative_flag() && !self.reg_bank.get_zero_flag() {
+                self.pc = self.reg_bank[reg1] as usize;
+            }
+            Bge(reg1) => if !self.reg_bank.get_negative_flag() {
+                self.pc = self.reg_bank[reg1] as usize;
+            }
 
             // Operational system instructions
-            Instruction::Int => run_interrupt(&mut self.reg_bank, io_device)?,
-            Instruction::Hlt => return Ok(false),
+            Int => run_interrupt(&mut self.reg_bank, io_device)?,
+            Hlt => return Ok(false),
         }
         Ok(true)
     }

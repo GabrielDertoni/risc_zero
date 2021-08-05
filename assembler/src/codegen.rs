@@ -276,10 +276,11 @@ where
     fn is_valid_instruction(&self, name: &str) -> bool {
         match name {
             "noop" | "not"  | "add"  | "sub"  | "mult" | "mov"  | "div"  |
-            "and"  | "or"   | "shl"  | "shr"  | "ceq"  | "clt"  | "addi" |
-            "andi" | "lui"  | "jmp"  | "beq"  | "bne"  | "ldb"  | "stb"  |
-            "ldw"  | "stw"  | "int"  | "hlt"  | "lli" => true,
-            _ => false,
+            "and"  | "or"   | "shl"  | "shr"  | "cmp"  | "addi" | "andi" |
+            "lui"  | "jmp"  | "beq"  | "bne"  | "blt"  | "ble"  | "bgt"  |
+            "bge"  | "ldb"  | "stb"  | "ldw"  | "stw"  | "int"  | "hlt"
+                  => true,
+            _     => false,
         }
     }
 
@@ -413,7 +414,7 @@ where
             }
 
             "add" | "sub" | "mult" | "div" | "mov" | "and" |
-            "or"  | "shl" | "shr"  | "ceq" | "clt"  => {
+            "or"  | "shl" | "shr"  | "cmp"  => {
                 let (dest, src) = match inst.args.as_slice() {
                     [Arg::Reg(dest), Arg::Reg(src)] => (dest.addr, src.addr),
                     [_, _] => return error!(
@@ -443,8 +444,7 @@ where
                     "or"   => Or(dest, src),
                     "shl"  => Shl(dest, src),
                     "shr"  => Shr(dest, src),
-                    "ceq"  => Ceq(dest, src),
-                    "clt"  => Clt(dest, src),
+                    "cmp"  => Cmp(dest, src),
                     _      => unreachable!(),
                 };
 
@@ -452,7 +452,7 @@ where
             }
 
             // J - type instructions
-            "beq" | "bne" | "jmp"  => {
+            "jmp" | "beq" | "bne" | "blt" | "ble" | "bgt" | "bge" => {
                 let target = match inst.args.as_slice() {
                     [Arg::Reg(target)] => target.addr,
                     [_] => return error!(
@@ -473,17 +473,21 @@ where
                 };
 
                 let inst = match inst_name {
-                    "jmp"  => Jmp(target),
-                    "beq"  => Beq(target),
-                    "bne"  => Bne(target),
-                    _      => unreachable!(),
+                    "jmp" => Jmp(target),
+                    "beq" => Beq(target),
+                    "bne" => Bne(target),
+                    "blt" => Blt(target),
+                    "ble" => Ble(target),
+                    "bgt" => Bgt(target),
+                    "bge" => Bge(target),
+                    _     => unreachable!(),
                 };
 
                 self.emit_word(inst.encode())?;
             }
 
             // I - type instructions
-            "addi" | "andi" | "lui" | "lli" => {
+            "addi" | "andi" | "lui" => {
                 let (dest, imm) = match inst.args.as_slice() {
                     [Arg::Reg(dest), Arg::Imm(imm)] => {
                         let imm = self.assemble_immediate(imm)?;
@@ -512,7 +516,6 @@ where
                     "addi" => Addi(dest, imm),
                     "andi" => Andi(dest, imm),
                     "lui"  => Lui(dest, imm),
-                    "lli"  => Lli(dest, imm),
                     _      => unreachable!(),
                 };
 

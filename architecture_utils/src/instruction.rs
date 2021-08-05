@@ -14,14 +14,16 @@ pub enum Instruction {
     Not(Reg),
     Shl(Reg, Reg),
     Shr(Reg, Reg),
-    Ceq(Reg, Reg),
-    Clt(Reg, Reg),
+    Cmp(Reg, Reg),
     Addi(Reg, u8), 
     Lui(Reg, u8),
-    Lli(Reg, u8),
     Jmp(Reg),
     Beq(Reg),
     Bne(Reg),
+    Blt(Reg),
+    Ble(Reg),
+    Bgt(Reg),
+    Bge(Reg),
     Ldb(Reg, Reg, u8),
     Stb(Reg, Reg, u8),
     Ldw(Reg, Reg, u8),
@@ -56,8 +58,7 @@ impl Instruction {
                      7 => Not(reg1),
                      8 => Shl(reg1, reg2),
                      9 => Shr(reg1, reg2),
-                    10 => Ceq(reg1, reg2),
-                    11 => Clt(reg1, reg2),
+                    10 => Cmp(reg1, reg2),
                     _  => return Err(
                         format!("Unexpected arithmetic instruction: {}", opt)
                     ),
@@ -73,6 +74,10 @@ impl Instruction {
                     0 => Jmp(reg),
                     1 => Beq(reg),
                     2 => Bne(reg),
+                    3 => Blt(reg),
+                    4 => Ble(reg),
+                    5 => Bgt(reg),
+                    6 => Bge(reg),
                     _ => return Err(
                         format!("Unexpected jump instruction with opt {}", opt)
                     ),
@@ -87,8 +92,7 @@ impl Instruction {
                 match opcode {
                     3 => Addi(reg, immediate),
                     4 => Lui(reg, immediate),
-                    5 => Lli(reg, immediate),
-                    6 => Andi(reg, immediate),
+                    5 => Andi(reg, immediate),
                     _ => unreachable!(),
                 }
             },
@@ -138,7 +142,7 @@ impl Instruction {
 
             Add(dest, src) | Sub(dest, src)  | Mult(dest, src) | Div(dest, src) |
             Mov(dest, src) | And(dest, src)  | Or(dest, src)   | Shl(dest, src) |
-            Shr(dest, src) | Ceq(dest, src)  | Clt(dest, src) => {
+            Shr(dest, src) | Cmp(dest, src)  => {
 
                 let opt = match self {
                     Add(..)  =>  0,
@@ -150,8 +154,7 @@ impl Instruction {
                     Or(..)   =>  6,
                     Shl(..)  =>  8,
                     Shr(..)  =>  9,
-                    Ceq(..)  => 10,
-                    Clt(..)  => 11,
+                    Cmp(..)  => 10,
                     _        => unreachable!(),
                 };
 
@@ -164,12 +167,18 @@ impl Instruction {
             }
 
             // J - type instructions
-            Beq(target) | Bne(target) | Jmp(target)  => {
+            Jmp(target) | Beq(target) | Bne(target) | 
+            Blt(target) | Ble(target) | Bgt(target) |
+            Bge(target) => {
 
                 let opt = match self {
                     Jmp(..) => 0,
                     Beq(..) => 1,
                     Bne(..) => 2,
+                    Blt(..) => 3,
+                    Ble(..) => 4,
+                    Bgt(..) => 5,
+                    Bge(..) => 6,
                     _       => unreachable!(),
                 };
                 
@@ -181,12 +190,11 @@ impl Instruction {
             }
 
             // I - type instructions
-            Addi(dest, imm) | Andi(dest, imm) | Lui(dest, imm) | Lli(dest, imm) => {
+            Addi(dest, imm) | Andi(dest, imm) | Lui(dest, imm) => {
                 let opcode = match self {
                     Addi(..) => 3,
                     Lui(..)  => 4,
-                    Lli(..)  => 5,
-                    Andi(..) => 6,
+                    Andi(..) => 5,
                     _        => unreachable!(),
                 };
 
@@ -322,15 +330,17 @@ impl Display for Instruction {
             Or(reg1, reg2)       => write!(f, "or   {}, {}", reg1, reg2),
             Shl(reg1, reg2)      => write!(f, "shl  {}, {}", reg1, reg2),
             Shr(reg1, reg2)      => write!(f, "shr  {}, {}", reg1, reg2),
-            Ceq(reg1, reg2)      => write!(f, "ceq  {}, {}", reg1, reg2),
-            Clt(reg1, reg2)      => write!(f, "clt  {}, {}", reg1, reg2),
+            Cmp(reg1, reg2)      => write!(f, "cmp  {}, {}", reg1, reg2),
             Addi(reg1, imm)      => write!(f, "addi {}, {}", reg1, imm),
             Andi(reg1, imm)      => write!(f, "andi {}, {}", reg1, imm),
             Lui(reg1, imm)       => write!(f, "lui  {}, {}", reg1, imm),
-            Lli(reg1, imm)       => write!(f, "lli  {}, {}", reg1, imm),
             Jmp(reg1)            => write!(f, "jmp  {}", reg1),
             Beq(reg1)            => write!(f, "beq  {}", reg1),
             Bne(reg1)            => write!(f, "bne  {}", reg1),
+            Blt(reg1)            => write!(f, "blt  {}", reg1),
+            Ble(reg1)            => write!(f, "ble  {}", reg1),
+            Bgt(reg1)            => write!(f, "bgt  {}", reg1),
+            Bge(reg1)            => write!(f, "bge  {}", reg1),
             Ldb(reg1, reg2, imm) => write!(f, "ldb  {}, {}({})", reg1, reg2, imm),
             Stb(reg1, reg2, imm) => write!(f, "stb  {}, {}({})", reg1, reg2, imm),
             Ldw(reg1, reg2, imm) => write!(f, "ldw  {}, {}({})", reg1, reg2, imm),

@@ -1,29 +1,37 @@
+use std::collections::VecDeque;
 use std::io::{ self, Read, Write };
 
-pub struct IODevice {
+pub struct Console {
     pub log: Vec<String>,
     pub output: Vec<u8>,
-    pub input: Vec<u8>,
+    pub input: VecDeque<u8>,
 }
 
-impl IODevice {
-    pub fn new() -> IODevice {
-        IODevice {
-            log: Vec::new(),
+impl Console {
+    pub fn new() -> Console {
+        Console {
+            log:    Vec::new(),
             output: Vec::new(),
-            input: Vec::new(),
+            input:  VecDeque::new(),
         }
     }
 }
 
-
-impl Read for IODevice {
+impl Read for Console {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        Read::read(&mut self.input.as_slice(), buf)
+        for (i, el) in buf.iter_mut().enumerate() {
+            if let Some(front) = self.input.pop_front() {
+                *el = front;
+            } else {
+                return Ok(i);
+            }
+        }
+        Ok(buf.len())
     }
 }
 
-impl Write for IODevice {
+
+impl Write for Console {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let n = Write::write(&mut self.output, buf)?;
         if self.output.ends_with(b"\n") {
