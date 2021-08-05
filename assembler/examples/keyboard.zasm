@@ -1,42 +1,23 @@
 @include "assembler/examples/utils.zasm"
+@include "assembler/examples/stdio.zasm"
 
 .entry_point main
 
 main:
     andi $r4, 0
 .loop:
-    la   $r1, KEYBOARD_QUEUE_END_PTR
-    ldw  $r2, $r1(0)
-    la   $r1, KEYBOARD_QUEUE_START_PTR
-    ldw  $r3, $r1(0)
-    beql $r2, $r3, .loop
-    ldb  $r1, $r3(0)
-
-    ; putc $r1
+    jal  getchar
     li   $r2, '\n'
-    bnel $r1, $r2, .put_char
+    bnel $acc, $r2, .put_char
 
-.skip_line:
     li   $r5, 60
     div  $r4, $r5      ; ($r4 - $r4 % 60) + 60
     sub  $r4, $lo
     add  $r4, $r5
-    jl   .advance_keyboard_queue
 
 .put_char:
-    stb  $r1, $r4(0)
+    stb  $acc, $r4(0)
     addi $r4, 1
 
-.advance_keyboard_queue:
-    mov  $r1, $r3
-    andi $r1, 0b111
-    addi $r1, 1
-    andi $r1, 0b111
-    la   $r2, 0b1111111111111000
-    and  $r3, $r2
-    add  $r3, $r1
-
-    la   $r1, KEYBOARD_QUEUE_START_PTR
-    stw  $r3, $r1(0)
     jl   .loop
     hlt

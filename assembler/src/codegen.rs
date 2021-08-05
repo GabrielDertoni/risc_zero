@@ -46,7 +46,7 @@ impl<'a> LabelName<'a> {
 pub struct Assembler<'a, W> {
     writer: W,
     offset: u16,
-    sources: Vec<Box<str>>,
+    sources: HashMap<String, Box<str>>,
     parent: Option<ast::Ident<'a>>,
     labels: HashMap<LabelName<'a>, LabelDef<'a>>,
     defines: HashMap<&'a str, ast::Expr<'a>>,
@@ -66,7 +66,7 @@ where
         Assembler {
             writer,
             offset,
-            sources: Vec::new(),
+            sources: HashMap::new(),
             parent: None,
             labels: HashMap::new(),
             defines: HashMap::new(),
@@ -145,28 +145,37 @@ where
         n_bytes
     }
 
-    fn add_src(&mut self, src_file: &str) -> Result<&'a str> {
-        self.sources.push(std::fs::read_to_string(src_file)?.into_boxed_str());
+    fn add_src(&mut self, src_file: &str) -> Result<Option<&'a str>> {
+        use std::collections::hash_map::Entry;
+
+        let source = match self.sources.entry(src_file.to_string()) {
+            Entry::Occupied(..)  => return Ok(None),
+            Entry::Vacant(entry) =>
+                entry.insert(std::fs::read_to_string(src_file)?.into_boxed_str()),
+        };
 
         // This is hopefully ok because we are only ever getting a reference to the buffer of the
         // string, not the string struct itself, if the string never changes, we should be fine
-        // even if the vec itself changes.
+        // even if the map itself changes.
         unsafe {
-            Ok(std::mem::transmute(self.sources.last().unwrap().as_ref()))
+            Ok(Some(std::mem::transmute(source.as_ref())))
         }
     }
 
     pub fn assemble_src(&mut self, src_file: &str) -> Result<()> {
-        let src = self.add_src(src_file)?;
-        let prog = parse_src(src)?;
-        self.assemble_main(&prog)
+        if let Some(src) = self.add_src(src_file)? {
+            let prog = parse_src(src)?;
+            self.assemble_main(&prog)?;
+        }
+        Ok(())
     }
 
     fn assemble_main(&mut self, prog: &ast::Prog<'a>) -> Result<()> {
         // Write a bunch of zeros so that we can go past the header position
         self.writer.write(&[0; risc0::FileHeader::SIZE as usize])?;
 
-        self.assemble(&prog.stmts)?;
+        let mut offset = self.offset as usize;
+        self.assemble(&prog.stmts, &mut offset)?;
 
         self.writer.seek(SeekFrom::Start(0))?;
 
@@ -187,9 +196,8 @@ where
         Ok(())
     }
 
-    fn assemble(&mut self, stmts: &[ast::Stmt<'a>]) -> Result<()> {
-        let mut offset = self.offset as usize;
-        self.find_labels_and_macros(stmts, &mut offset)?;
+    fn assemble(&mut self, stmts: &[ast::Stmt<'a>], offset: &mut usize) -> Result<()> {
+        self.find_labels_and_macros(stmts, offset)?;
         self.parent = None;
         self.assemble_stmts(stmts)?;
         self.parent = None;
@@ -205,9 +213,10 @@ where
                 Marker(..)   => (),
 
                 Include(s)   => {
-                    let src = self.add_src(s.content)?;
-                    let prog = parse_src(src)?;
-                    self.assemble(&prog.stmts)?;
+                    if let Some(src) = self.add_src(s.content)? {
+                        let prog = parse_src(src)?;
+                        self.assemble(&prog.stmts, offset)?;
+                    }
                 }
 
                 Define(name, lit) => {
