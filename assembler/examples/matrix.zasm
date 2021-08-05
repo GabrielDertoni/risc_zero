@@ -1,0 +1,66 @@
+@include "assembler/examples/utils.zasm"
+@include "assembler/examples/stdio.zasm"
+
+.entry_point main
+
+main:
+    andi $r4, 0
+.loop:
+    push $r4
+    jal  getchar
+    pop  $r4
+    li   $r2, '\n'
+    bnel $acc, $r2, .put_char
+
+    li   $r5, 60
+    div  $r4, $r5      ; ($r4 - $r4 % 60) + 60
+    sub  $r4, $lo
+    add  $r4, $r5
+    jl   .loop
+
+.put_char:
+    stb  $acc, $r4(0)
+    addi $r4, 1
+
+    li $r7, 0
+    
+    mov $r5, $acc
+    li $acc, 7
+    int
+    li $r6, 8
+    div $acc, $r6
+    mov $r6, $lo
+
+    mov $acc, $r5
+
+    jl .gravity_wrapper
+    jl   .loop
+    hlt
+
+.gravity_wrapper:
+    mov $r3, $r4
+    jl .gravity
+
+.gravity_exit:
+    mov $r4, $r3
+    jl .loop
+
+.gravity_loop:
+    la $r8, .gravity_exit
+
+    addi $r7, 1
+    cmp $r7, $r6
+    bgt $r8
+
+    jl .gravity
+
+.gravity:
+    li $r9, 1
+    sub $r4, $r9
+
+    addi $r4, 60
+    stb $acc, $r4(0)
+    
+    addi $r4, 1
+
+    jl .gravity_loop
