@@ -2,10 +2,15 @@ use std::fs::File;
 
 use crate::reg_bank::RegBank;
 use architecture_utils::*;
-use std::io::Read;
+use std::io::{ Read, Write };
 use crate::os::*;
 
-const MEMORY_SIZE: usize = 65_536;
+pub const SCREEN_WIDTH: usize       = 60;
+pub const SCREEN_HEIGHT: usize      = 20;
+pub const KEYBOARD_START: usize     = SCREEN_HEIGHT * SCREEN_WIDTH;
+pub const KEYBOARD_QUEUE_END: usize = KEYBOARD_START + 8;
+pub const TEXT_START: usize         = KEYBOARD_START + 8 + 4;
+pub const MEMORY_SIZE: usize        = 65_536;
 
 pub struct CPUState {
     pub file: File,
@@ -22,12 +27,19 @@ impl CPUState {
         let mut memory = vec![0_u8; MEMORY_SIZE];
 
         // Load text/data segment into memory
-        file.read(&mut memory[..header.data_seg_start as usize - FileHeader::SIZE as usize])?;
-        file.read(&mut memory[header.data_seg_start as usize - FileHeader::SIZE as usize ..])?;
+        let text_len = header.data_seg_start as usize - FileHeader::SIZE as usize;
+        let data_start = TEXT_START + text_len;
+        file.read(&mut memory[TEXT_START..data_start])?;
+        file.read(&mut memory[data_start..])?;
+        memory[..KEYBOARD_START].fill(b' ');
+        eprintln!("{:?}", memory[..KEYBOARD_START].len());
+        memory[KEYBOARD_START..TEXT_START    ].fill(0);
+        memory[TEXT_START - 4..TEXT_START - 2].copy_from_slice(&(KEYBOARD_START as u16).to_be_bytes());
+        memory[TEXT_START - 2..TEXT_START    ].copy_from_slice(&(KEYBOARD_START as u16).to_be_bytes());
 
         // Setup initial register bank
         let mut reg_bank = RegBank::new();
-        reg_bank[Reg::SP] = (memory.len()-1) as i16;
+        reg_bank[Reg::SP] = (memory.len() - 1) as i16;
 
         // Points PC to the main label
         let pc = header.entry_point as usize;
@@ -42,7 +54,7 @@ impl CPUState {
         )
     }
 
-    pub fn simulate(&mut self) -> bool {
+    pub fn simulate<IO: Read + Write>(&mut self, io_device: IO) -> std::io::Result<bool> {
         let inst_word = u16::from_be_bytes([self.memory[self.pc], self.memory[self.pc+1]]);        
         let curr_instruction = Instruction::decode(inst_word).unwrap();
         self.pc += 2;
@@ -119,7 +131,7 @@ impl CPUState {
             Instruction::Ldw(reg1, reg2, immediate) => {
                 let memory_final_address = (self.reg_bank[reg2] + immediate as i16) as usize;
                 let upper = self.memory[memory_final_address];
-                let lower = self.memory[memory_final_address-1];
+                let lower = self.memory[memory_final_address + 1];
 
                 self.reg_bank[reg1] = i16::from_be_bytes([upper, lower]);
             }
@@ -133,34 +145,29 @@ impl CPUState {
 
             // Branch instructions
             Instruction::Beq(reg1) => {
-                if !self.reg_bank.get_equal_flag() {
+                if self.reg_bank.get_equal_flag() {
                     self.pc = self.reg_bank[reg1] as usize;
                 }
             }
             Instruction::Bne(reg1) => {
-                if self.reg_bank.get_equal_flag() {
+                if !self.reg_bank.get_equal_flag() {
                     self.pc = self.reg_bank[reg1] as usize;
                 }
             }
             Instruction::Jmp(reg1) => self.pc = self.reg_bank[reg1] as usize,
 
             // Operational system instructions
-            Instruction::Int => run_interrupt(&mut self.reg_bank).unwrap(),
-            Instruction::Hlt => return false,
+            Instruction::Int => run_interrupt(&mut self.reg_bank, io_device)?,
+            Instruction::Hlt => return Ok(false),
         }
-        true
+        Ok(true)
     }
-}
 
-impl Iterator for CPUState {
-    type Item = usize;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.simulate() {
-            Some(self.pc)
-        } else {
-            None
-        }
+    pub fn write_keyboard_input(&mut self, key: char) {
+        let queue_end = u16::from_be_bytes([self.memory[KEYBOARD_QUEUE_END], self.memory[KEYBOARD_QUEUE_END + 1]]);
+        self.memory[queue_end as usize] = key as u8;
+        let queue_end = ((queue_end + 1) & 0b111) + (queue_end & 0xfff8);
+        self.memory[KEYBOARD_QUEUE_END..KEYBOARD_QUEUE_END + 2].copy_from_slice(&queue_end.to_be_bytes());
     }
 }
 

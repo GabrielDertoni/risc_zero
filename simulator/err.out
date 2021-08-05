@@ -1,0 +1,14 @@
+   Compiling risc_zero v0.1.0 (/home/tron/Documents/proj/risc_zero/simulator)
+warning: unused import: `std::str`
+ --> simulator/src/ui.rs:1:5
+  |
+1 | use std::str;
+  |     ^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: 1 warning emitted
+
+    Finished dev [unoptimized + debuginfo] target(s) in 1.37s
+     Running `/home/tron/Documents/proj/risc_zero/target/debug/risc_zero --tick_rate 25 ../assembler/a.out`
+1200

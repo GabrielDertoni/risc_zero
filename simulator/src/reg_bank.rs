@@ -8,11 +8,11 @@ pub struct RegBank {
 }
 
 impl RegBank {
-    const ZERO_FLAG_MASK: i16  = 0b00001;
-    const CARRY_FLAG_MASK: i16 = 0b00010;
-    const NEG_FLAG_MASK: i16   = 0b00100;
-    const EQUAL_FLAG_MASK: i16 = 0b01000;
-    const LESS_FLAG_MASK: i16  = 0b10000;
+    pub const ZERO_FLAG_MASK: i16  = 0b00001;
+    pub const CARRY_FLAG_MASK: i16 = 0b00010;
+    pub const NEG_FLAG_MASK: i16   = 0b00100;
+    pub const EQUAL_FLAG_MASK: i16 = 0b01000;
+    pub const LESS_FLAG_MASK: i16  = 0b10000;
 
     pub fn new() -> RegBank {
         RegBank {
@@ -61,23 +61,23 @@ impl RegBank {
     }
 
     pub fn get_zero_flag(&self) -> bool {
-        (self[Reg::FL] & Self::ZERO_FLAG_MASK) == 1
+        (self[Reg::FL] & Self::ZERO_FLAG_MASK) != 0
     }
 
     pub fn get_carry_flag(&self) -> bool {
-        (self[Reg::FL] & Self::CARRY_FLAG_MASK) == 1
+        (self[Reg::FL] & Self::CARRY_FLAG_MASK) != 0
     }
 
     pub fn get_negative_flag(&self) -> bool {
-        (self[Reg::FL] & Self::NEG_FLAG_MASK) == 1
+        (self[Reg::FL] & Self::NEG_FLAG_MASK) != 0
     }
 
     pub fn get_equal_flag(&self) -> bool {
-        (self[Reg::FL] & Self::EQUAL_FLAG_MASK) == 1
+        (self[Reg::FL] & Self::EQUAL_FLAG_MASK) != 0
     }
 
     pub fn get_less_flag(&self) -> bool {
-        (self[Reg::FL] & Self::LESS_FLAG_MASK) == 1
+        (self[Reg::FL] & Self::LESS_FLAG_MASK) != 0
     }
 }
 
