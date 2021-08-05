@@ -1,11 +1,5 @@
 @include "assembler/examples/utils.zasm"
 
-@macro sub %reg1, %reg2 {
-    la   $tmp, -1
-    mult %reg2, $tmp
-    add  %reg1, %reg2
-}
-
 .entry_point main
 
 main:
@@ -44,5 +38,5 @@ main:
 
     la   $r1, 1210
     stw  $r3, $r1(0)
-    j .loop
+    jl   .loop
     hlt
