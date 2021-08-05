@@ -100,4 +100,4 @@ J    | 4      | 4    | -    | -  | 8
 
 ## Diagrama
 
-![Diagrama da Arquitetura](assets/Arquitetura.png "Diagrama da Arquitetura")
+![Diagrama da Arquitetura](assets/architecture.png "Diagrama da Arquitetura")
