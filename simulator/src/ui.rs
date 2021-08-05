@@ -38,7 +38,7 @@ where
             [
                 format!(" {}\t: {:#06x}", Reg::ADR, curr_state.reg_bank[Reg::ADR]),
                 format!("{}\t: {}", Reg::ACC, curr_state.reg_bank[Reg::ACC]),
-                format!("$pc\t: {:#06x}", curr_state.pc),
+                format!("{}\t: {}", Reg::TMP, curr_state.reg_bank[Reg::TMP]),
                 format!("{}\t: {:#07b}", Reg::FL, curr_state.reg_bank[Reg::FL]),
             ]
         ),
