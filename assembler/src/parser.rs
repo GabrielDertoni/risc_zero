@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
+use std::fmt::Write;
 
 use pest_derive::Parser;
-use pest::Parser;
-use pest::iterators::{ Pair, Pairs };
+use pest::{ Parser, Span, iterators::{ Pair, Pairs } };
 
 use crate::ast::*;
 use crate::error::Error;
@@ -43,24 +43,24 @@ impl<'a> From<Pair<'a, Rule>> for Ident<'a> {
 #[derive(Debug, Clone)]
 pub struct Context<'a> {
     pub macro_args: BTreeMap<(&'a str, usize), Arg<'a>>,
-    pub macro_depth: usize,
+    pub macro_call_stack: Vec<Span<'a>>,
 }
 
 impl<'a> Context<'a> {
     pub fn new() -> Context<'a> {
         Context {
             macro_args: BTreeMap::new(),
-            macro_depth: 0,
+            macro_call_stack: Vec::new(),
         }
     }
 
     pub fn insert_macro_arg(&mut self, name: &'a str, arg: Arg<'a>) -> Option<Arg<'a>> {
-        let depth = self.macro_depth;
+        let depth = self.macro_depth();
         self.macro_args.insert((name, depth), arg)
     }
 
     pub fn get_macro_arg(&mut self, name: &'a str) -> Option<&Arg<'a>> {
-        let depth = self.macro_depth;
+        let depth = self.macro_depth();
         self.macro_args
             .range((name, 0)..=(name, depth))
             .rev()
@@ -69,10 +69,23 @@ impl<'a> Context<'a> {
     }
 
     pub fn remove_macro_args_in_depth(&mut self) {
-        let this_depth = self.macro_depth;
+        let this_depth = self.macro_depth();
         self.macro_args
             .drain_filter(|&(_, depth), _| depth == this_depth)
             .for_each(drop)
+    }
+
+    pub fn macro_depth(&self) -> usize {
+        self.macro_call_stack.len()
+    }
+
+    pub fn traceback(&self) -> String {
+        let mut result = String::new();
+        for trace in self.macro_call_stack.iter().rev() {
+            let (line, col) = trace.start_pos().line_col();
+            writeln!(result, "at {}:{}", line, col).unwrap();
+        }
+        result
     }
 }
 
@@ -81,7 +94,7 @@ fn parse_lbl_name<'a>(lbl_name: Pair<'a, Rule>, cx: Option<&mut Context<'a>>) ->
     let ident = Ident::from(lbl_name);
 
     if let Some(cx) = cx {
-        Ok(Label::Macro(ident, cx.macro_depth))
+        Ok(Label::Macro(ident, cx.macro_depth()))
     } else if ident.content.starts_with(".") {
         Ok(Label::local(ident))
     } else {

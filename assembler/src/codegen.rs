@@ -2,7 +2,6 @@
 
 use std::collections::HashMap;
 use std::io::{ Seek, SeekFrom, Write };
-use std::cell::RefCell;
 
 use pest::Span;
 use architecture_utils as risc0;
@@ -189,7 +188,7 @@ where
     }
 
     fn assemble(&mut self, stmts: &[ast::Stmt<'a>]) -> Result<()> {
-        let mut offset = 0;
+        let mut offset = self.offset as usize;
         self.find_labels_and_macros(stmts, &mut offset)?;
         self.parent = None;
         self.assemble_stmts(stmts)?;
@@ -224,24 +223,28 @@ where
                     } else if self.macros.contains_key(&inst.ident.content) {
                         // TODO: this is not very efficient, fix it!
 
-                        let mut cx = self.macro_ctx.clone();
-                        cx.macro_depth += 1;
-
+                        self.macro_ctx.macro_call_stack.push(inst.span());
                         let mac = self.macros.get(&inst.ident.content).unwrap();
 
                         if mac.args.len() != inst.args.len() {
                             return error!(
-                                format!("expected {} arguments, but got {}", mac.args.len(), inst.args.len()),
+                                format!(
+                                    "expected {} arguments, but got {}\nmacro traceback:\n{}",
+                                    mac.args.len(),
+                                    inst.args.len(),
+                                    self.macro_ctx.traceback()
+                                ),
                                 inst.span()
                             );
                         }
 
                         for (macro_arg, inst_arg) in mac.args.iter().zip(&inst.args) {
-                            cx.insert_macro_arg(macro_arg.content, inst_arg.clone());
+                            self.macro_ctx.insert_macro_arg(macro_arg.content, inst_arg.clone());
                         }
 
-                        let stmts = parse_stmts(mac.body.clone(), Some(&mut cx))?;
+                        let stmts = parse_stmts(mac.body.clone(), Some(&mut self.macro_ctx))?;
                         self.find_labels_and_macros(&stmts, offset)?;
+                        self.macro_ctx.macro_call_stack.pop();
                     }
                 }
 
@@ -295,7 +298,7 @@ where
                         span.clone()
                     );
                 }
-                self.entry_point.replace(entry_point);
+                self.entry_point.replace(entry_point as usize);
             }
 
             // Assumes the label has already been accounted for in the first pass.
@@ -381,11 +384,18 @@ where
                 let dest = match inst.args.as_slice() {
                     [Arg::Reg(dest)] => dest.addr,
                     [_] => return error!(
-                        "expected a register argument",
+                        format!(
+                            "expected a register argument\nmacro traceback:\n{}",
+                            self.macro_ctx.traceback()
+                        ),
                         span
                     ),
                     _ => return error!(
-                        format!("expected 1 argument, but got {}", inst.args.len()),
+                        format!(
+                            "expected 1 argument, but got {}\nmacro traceback:\n{}",
+                            inst.args.len(),
+                            self.macro_ctx.traceback()
+                        ),
                         span
                     ),
                 };
@@ -398,11 +408,18 @@ where
                 let (dest, src) = match inst.args.as_slice() {
                     [Arg::Reg(dest), Arg::Reg(src)] => (dest.addr, src.addr),
                     [_, _] => return error!(
-                        "expected register arguments",
+                        format!(
+                            "expected register arguments\nmacro traceback:\n{}",
+                            self.macro_ctx.traceback()
+                        ),
                         span
                     ),
                     _ => return error!(
-                       format!("expected 2 arguments, but got {}", inst.args.len()),
+                       format!(
+                           "expected 2 arguments, but got {}\nmacro traceback:\n{}",
+                           inst.args.len(),
+                           self.macro_ctx.traceback()
+                       ),
                        span
                     ),
                 };
@@ -429,11 +446,18 @@ where
                 let target = match inst.args.as_slice() {
                     [Arg::Reg(target)] => target.addr,
                     [_] => return error!(
-                        "expected argument to be a register",
+                        format!(
+                            "expected argument to be a register\nmacro traceback:\n{}",
+                            self.macro_ctx.traceback()
+                        ),
                         span
                     ),
                     _ => return error!(
-                        format!("expected 1 argument, but got {}", inst.args.len()),
+                        format!(
+                            "expected 1 argument, but got {}\nmacro traceback:\n{}",
+                            inst.args.len(),
+                            self.macro_ctx.traceback()
+                        ),
                         span
                     ),
                 };
@@ -457,12 +481,19 @@ where
                     }
 
                     [_, _] => return error!(
-                        "expected a register and an immediate value as arguments",
+                        format!(
+                            "expected a register and an immediate value as arguments\nmacro traceback:\n{}",
+                            self.macro_ctx.traceback()
+                        ),
                         span
                     ),
 
                     _ => return error!(
-                        format!("expected 2 arguments, but got {}", inst.args.len()),
+                        format!(
+                            "expected 2 arguments, but got {}\nmacro traceback:\n{}",
+                            inst.args.len(),
+                            self.macro_ctx.traceback()
+                        ),
                         span
                     ),
                 };
@@ -486,12 +517,19 @@ where
                     }
 
                     [_, _] => return error!(
-                        "expected first register and register immediate arguments",
+                        format!(
+                            "expected first register and register immediate arguments\nmacro traceback:\n{}",
+                            self.macro_ctx.traceback()
+                        ),
                         span
                     ),
 
                     _ => return error!(
-                        format!("expected 2 arguments, but got {}", inst.args.len()),
+                        format!(
+                            "expected 2 arguments, but got {}\nmacro traceback:\n{}",
+                            inst.args.len(),
+                            self.macro_ctx.traceback()
+                        ),
                         span
                     ),
                 };
@@ -524,7 +562,12 @@ where
                 
                 if mac.args.len() != inst.args.len() {
                     return error!(
-                        format!("expected {} arguments, but got {}", mac.args.len(), inst.args.len()),
+                        format!(
+                            "expected {} arguments, but got {}\nmacro traceback:\n{}",
+                            mac.args.len(),
+                            inst.args.len(),
+                            self.macro_ctx.traceback()
+                        ),
                         span
                     );
                 }
@@ -546,11 +589,11 @@ where
                     self.macro_ctx.insert_macro_arg(macro_arg.content, argument);
                 }
 
-                self.macro_ctx.macro_depth += 1;
+                self.macro_ctx.macro_call_stack.push(span);
                 let stmts = parse_stmts(mac.body.clone(), Some(&mut self.macro_ctx))?;
                 self.assemble_stmts(&stmts)?;
                 self.macro_ctx.remove_macro_args_in_depth();
-                self.macro_ctx.macro_depth -= 1;
+                self.macro_ctx.macro_call_stack.pop();
             }
 
             _ => return error!("instruction not supported", span),
@@ -585,7 +628,7 @@ where
             }
 
             Expr::Lbl(lbl) => {
-                self.get_label(lbl).map(|val| val as i32)
+                self.get_label(lbl)
             }
 
             Expr::Bin(BinExpr { lhs, operator, rhs, .. }) => {
@@ -609,7 +652,7 @@ where
         }
     }
 
-    fn get_label(&self, lbl: &ast::Label<'a>) -> Result<Addr> {
+    fn get_label(&self, lbl: &ast::Label<'a>) -> Result<i32> {
         use ast::Label;
 
         let span = lbl.span();
@@ -627,7 +670,7 @@ where
             Label::Global(global) => {
                 let global_name = LabelName::new(None, global.content);
 
-                let mac = LabelName::new_macro(global.content, self.macro_ctx.macro_depth);
+                let mac = LabelName::new_macro(global.content, self.macro_ctx.macro_depth());
 
                 if self.labels.contains_key(&global_name) {
                     global_name
@@ -640,8 +683,15 @@ where
         };
 
         if let Some(def) = self.labels.get(&lbl_name).cloned() {
-            Ok(def.addr + self.offset as usize)
+            Ok(def.addr as i32)
         } else {
+            // If it is a label, maybe it's actually a define. There is no way to diferentiate when
+            // parsing between a label and a define with the same name.
+            if let Label::Global(global) = lbl {
+                if let Some(def) = self.defines.get(&global.content) {
+                    return Ok(self.assemble_expr(def)? as i32)
+                }
+            }
             error!("label not defined", lbl.span())
         }
     }
