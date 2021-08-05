@@ -1,46 +1,4 @@
-
-@macro la %re, #label {
-    lui %re, (#label >> 8)
-    addi %re, (#label & 0xff)
-}
-
-@macro li %re, #imm {
-    andi %re, 0
-    addi %re, #imm
-}
-
-@macro push %reg {
-    stw %reg, $sp(0)
-    addi $sp, -1
-}
-
-@macro pop %reg {
-    ldw %reg, $sp(1)
-    addi $sp, 1
-}
-
-@macro putc %reg {
-    mov $r1, %reg
-    li $acc, 3
-    int
-}
-
-@macro j #label {
-    la $tmp, #label
-    jmp $tmp
-}
-
-@macro beql %reg1, %reg2, #label {
-    la $tmp, #label
-    ceq %reg1, %reg2
-    beq $tmp
-}
-
-@macro bnel %reg1, %reg2, #label {
-    la $tmp, #label
-    ceq %reg1, %reg2
-    bne $tmp
-}
+@include "assembler/examples/utils.zasm"
 
 @macro sub %reg1, %reg2 {
     la   $tmp, -1

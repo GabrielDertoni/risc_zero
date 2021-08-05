@@ -1,5 +1,7 @@
 
-@macro lli %reg, #imm {
+@define KEYBOARD_QUEUE_START 1210
+
+@macro li %reg, #imm {
     andi %reg, 0
     addi %reg, #imm
 }
@@ -15,17 +17,13 @@
     jmp $tmp
 }
 
-@macro beql #label {
+@macro beql %reg1, %reg2, #label {
     la  $tmp, #label
+    ceq %reg1, %reg2
     beq $tmp
 }
 
-@macro bnel #label {
-    la  $tmp, #label
-    bne $tmp
-}
-
-@macro bne_reg %reg1, %reg2, #label {
+@macro bnel %reg1, %reg2, #label {
     la  $tmp, #label
     ceq %reg1, %reg2
     bne $tmp
@@ -38,8 +36,8 @@ next_pc:
 }
 
 @macro putc #char {
-    la $r1, #char
-    la $acc, 1
+    li $r1, #char
+    li $acc, 3
     int
 }
 
@@ -47,3 +45,12 @@ next_pc:
     jmp $adr
 }
 
+@macro push %reg {
+    stw %reg, $sp(0)
+    addi $sp, -1
+}
+
+@macro pop %reg {
+    ldw %reg, $sp(1)
+    addi $sp, 1
+}

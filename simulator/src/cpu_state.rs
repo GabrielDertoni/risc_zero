@@ -71,6 +71,14 @@ impl CPUState {
                 self.reg_bank.set_zero_flag(result == 0);
                 self.reg_bank.set_negative_flag(result.is_negative());
             }
+            Instruction::Sub(reg1, reg2) => {
+                let (result, is_overflow) = self.reg_bank[reg1].overflowing_sub(self.reg_bank[reg2]);
+                self.reg_bank[reg1] = result;
+
+                self.reg_bank.set_carry_flag(is_overflow);
+                self.reg_bank.set_zero_flag(result == 0);
+                self.reg_bank.set_negative_flag(result.is_negative());
+            }
             Instruction::Addi(reg1, imm)  => {
                 let (result, is_overflow) = self.reg_bank[reg1].overflowing_add(imm as i16);
                 self.reg_bank[reg1] = result;

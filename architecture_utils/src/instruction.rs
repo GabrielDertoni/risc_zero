@@ -4,6 +4,7 @@ use crate::reg::Reg;
 pub enum Instruction {
     Noop,
     Add(Reg, Reg),
+    Sub(Reg, Reg),
     Mult(Reg, Reg),
     Mov(Reg, Reg),
     Div(Reg, Reg),
@@ -46,16 +47,17 @@ impl Instruction {
                 match opt {
                     // Add
                      0 => Add(reg1, reg2),
-                     1 => Mult(reg1, reg2),
-                     2 => Mov(reg1, reg2),
-                     3 => Div(reg1, reg2),
-                     4 => And(reg1, reg2),
-                     5 => Or(reg1, reg2),
-                     6 => Not(reg1),
-                     7 => Shl(reg1, reg2),
-                     8 => Shr(reg1, reg2),
-                     9 => Ceq(reg1, reg2),
-                    10 => Clt(reg1, reg2),
+                     1 => Sub(reg1, reg2),
+                     2 => Mult(reg1, reg2),
+                     3 => Mov(reg1, reg2),
+                     4 => Div(reg1, reg2),
+                     5 => And(reg1, reg2),
+                     6 => Or(reg1, reg2),
+                     7 => Not(reg1),
+                     8 => Shl(reg1, reg2),
+                     9 => Shr(reg1, reg2),
+                    10 => Ceq(reg1, reg2),
+                    11 => Clt(reg1, reg2),
                     _  => return Err(
                         format!("Unexpected arithmetic instruction: {}", opt)
                     ),
@@ -134,21 +136,22 @@ impl Instruction {
                 encoded |= opt;
             }
 
-            Add(dest, src) | Mult(dest, src) | Div(dest, src) | Mov(dest, src) |
-            And(dest, src) | Or(dest, src)   | Shl(dest, src) |
+            Add(dest, src) | Sub(dest, src)  | Mult(dest, src) | Div(dest, src) |
+            Mov(dest, src) | And(dest, src)  | Or(dest, src)   | Shl(dest, src) |
             Shr(dest, src) | Ceq(dest, src)  | Clt(dest, src) => {
 
                 let opt = match self {
                     Add(..)  =>  0,
-                    Mult(..) =>  1,
-                    Mov(..)  =>  2,
-                    Div(..)  =>  3,
-                    And(..)  =>  4,
-                    Or(..)   =>  5,
-                    Shl(..)  =>  7,
-                    Shr(..)  =>  8,
-                    Ceq(..)  =>  9,
-                    Clt(..)  => 10,
+                    Sub(..)  =>  1,
+                    Mult(..) =>  2,
+                    Mov(..)  =>  3,
+                    Div(..)  =>  4,
+                    And(..)  =>  5,
+                    Or(..)   =>  6,
+                    Shl(..)  =>  8,
+                    Shr(..)  =>  9,
+                    Ceq(..)  => 10,
+                    Clt(..)  => 11,
                     _        => unreachable!(),
                 };
 
@@ -311,6 +314,7 @@ impl Display for Instruction {
             Noop                 => write!(f, "noop"),
             Not(reg1)            => write!(f, "not  {}", reg1),
             Add(reg1, reg2)      => write!(f, "add  {}, {}", reg1, reg2),
+            Sub(reg1, reg2)      => write!(f, "sub  {}, {}", reg1, reg2),
             Mult(reg1, reg2)     => write!(f, "mult {}, {}", reg1, reg2),
             Mov(reg1, reg2)      => write!(f, "mov  {}, {}", reg1, reg2),
             Div(reg1, reg2)      => write!(f, "div  {}, {}", reg1, reg2),

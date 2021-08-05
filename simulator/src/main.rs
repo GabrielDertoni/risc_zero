@@ -34,7 +34,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         (@arg tick_rate: -r --tick_rate +takes_value "Tick rate")
     ).get_matches();
 
-    let tick_rate: u64 = matches.value_of("tick_rate").unwrap_or("250").parse()?;
+    let tick_rate: u64 = matches.value_of("tick_rate")
+        .and_then(|val| val.parse().ok())
+        .unwrap_or(250);
+
     // Load ZERO binary file
     let bin_filename = matches.value_of("BIN").unwrap();
 
@@ -55,10 +58,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         ..Config::default()
     });
 
+    let mut tick_count = 0;
+
     // Executing instructions
     let mut continuous_execution = false;
     'outer: loop {
-        terminal.draw(|f| draw(f, &curr_state, &mut io_device))?;
         match events.next()? {
             Event::Input(key) => match key {
                 Key::Up => continuous_execution = !continuous_execution,
@@ -83,6 +87,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                         }
                     }
                 }
+
+                if tick_count % 11 == 0 {
+                    terminal.draw(|f| draw(f, &curr_state, &mut io_device))?;
+                }
+
+                tick_count += 1;
             }
         }
     }

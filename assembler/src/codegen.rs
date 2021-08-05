@@ -403,8 +403,8 @@ where
                 self.emit_word(Not(dest).encode())?;
             }
 
-            "add" | "mult" | "div" | "mov" | "and" | "or" | "shl" | "shr" |
-            "ceq" | "clt"  => {
+            "add" | "sub" | "mult" | "div" | "mov" | "and" |
+            "or"  | "shl" | "shr"  | "ceq" | "clt"  => {
                 let (dest, src) = match inst.args.as_slice() {
                     [Arg::Reg(dest), Arg::Reg(src)] => (dest.addr, src.addr),
                     [_, _] => return error!(
@@ -426,6 +426,7 @@ where
 
                 let inst = match inst_name {
                     "add"  => Add(dest, src),
+                    "sub"  => Sub(dest, src),
                     "mult" => Mult(dest, src),
                     "mov"  => Mov(dest, src),
                     "div"  => Div(dest, src),

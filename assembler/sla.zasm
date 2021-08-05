@@ -1,0 +1,9 @@
+@include "assembler/examples/utils.zasm"
+
+@define KEYBOARD_QUEUE_START 1210
+
+.entry_point main
+
+main: 
+	la $r1, KEYBOARD_QUEUE_START
+	hlt
