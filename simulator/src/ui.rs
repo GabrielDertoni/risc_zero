@@ -1,7 +1,8 @@
 use tui::style::*;
+use tui::symbols::DOT;
 use tui::text::{ Spans, Text };
-use tui::widgets::{ Block, BorderType, Borders, List, ListItem, Paragraph, Row, Table };
-use tui::layout::{ Alignment, Constraint, Direction, Layout, Rect };
+use tui::widgets::{ Block, BorderType, Borders, List, ListItem, Row, Table, Tabs };
+use tui::layout::{ Constraint, Direction, Layout, Rect };
 use tui::backend::Backend;
 use tui::Frame;
 use architecture_utils::instruction::Instruction;
@@ -9,8 +10,9 @@ use architecture_utils::bin_header::FileHeader;
 use crate::reg::Reg;
 use crate::cpu_state::{ CPUState, TEXT_START, SCREEN_HEIGHT, SCREEN_WIDTH };
 use crate::io_device::Console;
+use crate::emulation_frame::EmulationFrame;
 
-pub fn draw<B: Backend>(frame: &mut Frame<B>, curr_state: &CPUState, io_device: &Console) {
+pub fn draw_home<B: Backend>(frame: &mut Frame<B>, curr_state: &CPUState, io_device: &Console) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(2)
@@ -25,6 +27,18 @@ pub fn draw<B: Backend>(frame: &mut Frame<B>, curr_state: &CPUState, io_device: 
     draw_reg_block(frame, chunks[0], curr_state);
     draw_lower_block(frame, chunks[1], curr_state, io_device);
     draw_how_to_block(frame, chunks[2]);
+}
+
+fn draw_tabs_home<B: Backend>(frame: &mut Frame<B>, area: Rect) {
+    let tabs_title = ["Home", "Memory"].iter().cloned()
+        .map(Spans::from)
+        .collect();
+    let tabs = Tabs::new(tabs_title)
+        .block(Block::default().title("Tabs").borders(Borders::ALL).border_type(BorderType::Rounded))
+        .style(Style::default().fg(Color::White))
+        .highlight_style(Style::default().bg(Color::White).fg(Color::Black).add_modifier(Modifier::BOLD))
+        .divider(DOT);
+    frame.render_widget(tabs, area)
 }
 
 fn draw_reg_block<B>(frame: &mut Frame<B>, area: Rect, curr_state: &CPUState) 
@@ -104,14 +118,13 @@ fn itemize_instructions(curr_state: &CPUState) -> Vec<ListItem> {
 
 // meio gambiarra, preciso arrumar depois
 // resolução 1:3
-fn itemize_emulation(curr_state: &CPUState) -> Vec<Spans> {
-    let mut emulation_lines: Vec<Spans> = Vec::new();
-    emulation_lines.push(Spans::from("\n"));
+fn itemize_emulation(curr_state: &CPUState) -> Vec<String> {
+    let mut emulation_lines: Vec<String> = Vec::new();
     for i in 0..SCREEN_HEIGHT {
         let first_line_byte = i * SCREEN_WIDTH;
-        emulation_lines.push(Spans::from(
+        emulation_lines.push(
                 String::from_utf8_lossy(&curr_state.memory[first_line_byte..first_line_byte + SCREEN_WIDTH]).to_string()
-        ));
+        );
     }
     emulation_lines
 }
@@ -125,9 +138,9 @@ where
         .margin(0)
         .constraints (
             [
-                Constraint::Percentage(15),
                 Constraint::Percentage(20),
-                Constraint::Percentage(65),
+                Constraint::Percentage(20),
+                Constraint::Percentage(60),
             ]
         )
         .split(area);
@@ -141,10 +154,8 @@ where
     frame.render_widget(instruction_list, chunks[0]);
 
     let emulation_vec = itemize_emulation(curr_state);
-    let emulation = Paragraph::new(emulation_vec)
-        .block(Block::default().title("Emulation").borders(Borders::ALL).border_type(BorderType::Rounded))
-        .style(Style::default().fg(Color::Gray))
-        .alignment(Alignment::Center);
+    let emulation = EmulationFrame::default().set_content(emulation_vec)
+        .block(Block::default().title("Emulation").borders(Borders::ALL).border_type(BorderType::Rounded));
     frame.render_widget(emulation, chunks[2]);
 
     let output_string = String::from_utf8(io_device.output.clone()).unwrap();
@@ -183,3 +194,5 @@ where
     .style(Style::default().fg(Color::White));
     frame.render_widget(how_to, area);
 }
+
+
