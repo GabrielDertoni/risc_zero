@@ -84,12 +84,12 @@ R1.
 
 ## Layout das instruções:
 
-Tipo | OpCode | Reg1 | Reg2 | Im | Opts
------|--------|------|------|----|-----
-R    | 4      | 4    | 4    | -  | 4
-I    | 4      | 4    | -    | 8  | -
-M    | 4      | 4    | 4    | 4  | -
-J    | 4      | 4    | -    | -  | 8
+Tipo / Bytes | OpCode | Reg1 | Reg2 | Im | Opts
+-------------|--------|------|------|----|-----
+R            | 4      | 4    | 4    | -  | 4
+I            | 4      | 4    | -    | 8  | -
+M            | 4      | 4    | 4    | 4  | -
+J            | 4      | 4    | -    | -  | 8
 
 
 
@@ -100,4 +100,4 @@ J    | 4      | 4    | -    | -  | 8
 
 ## Diagrama
 
-![Diagrama da Arquitetura](assets/Arquitetura.png "Diagrama da Arquitetura")
+![Diagrama da Arquitetura](assets/architecture.png "Diagrama da Arquitetura")
