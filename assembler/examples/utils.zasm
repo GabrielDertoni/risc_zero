@@ -1,6 +1,15 @@
 
-@define KEYBOARD_QUEUE_END_PTR   1208
-@define KEYBOARD_QUEUE_START_PTR 1210
+; Device mapping
+@define SCREEN_WIDTH             60
+@define SCREEN_HEIGTH            20
+@define SCREEN_LEN               ( SCREEN_WIDTH * SCREEN_HEIGTH )
+@define KEYBOARD_LEN             8
+@define KEYBOARD_QUEUE_END_PTR   ( SCREEN_LEN + KEYBOARD_LEN )
+@define KEYBOARD_QUEUE_START_PTR ( SCREEN_LEN + KEYBOARD_LEN + 2 )
+
+; Special chars
+@define BACKSPACE                0x08
+@define DELETE                   0x7f
 
 @macro li %reg, #imm {
     andi %reg, 0
@@ -27,6 +36,30 @@
     la  $tmp, #label
     cmp %reg1, %reg2
     bne $tmp
+}
+
+@macro bltl %reg1, %reg2, #label {
+    la $tmp, #label
+    cmp %reg1, %reg2
+    blt $tmp
+}
+
+@macro blel %reg1, %reg2, #label {
+    la $tmp, #label
+    cmp %reg1, %reg2
+    ble $tmp
+}
+
+@macro bgtl %reg1, %reg2, #label {
+    la $tmp, #label
+    cmp %reg1, %reg2
+    bgt $tmp
+}
+
+@macro bgel %reg1, %reg2, #label {
+    la $tmp, #label
+    cmp %reg1, %reg2
+    bge $tmp
 }
 
 @macro jal #label {
@@ -60,4 +93,14 @@ next_pc:
 @macro subi %reg1, #imm {
     li $tmp, #imm
     sub %reg1, $tmp
+}
+
+@macro divi %reg, #imm {
+    li  $tmp, #imm
+    div %reg, $tmp
+}
+
+@macro cmpi %reg, #imm {
+    li $tmp, #imm
+    cmp %reg, $tmp
 }
