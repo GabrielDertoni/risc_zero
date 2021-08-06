@@ -2,7 +2,7 @@
 
 ## Introdução
 
-RISC Zero é uma arquitetura monociclo de uso geral com 16 registradores, construida para a disciplina de **Prática em Organização de Computadores (SSC0119)** da Universidade de São Paulo. Junto de seu esquemático do circuito, foram construídos um _assembler_ e um simulador capazes de transformarem um código em Zassembly (Assembly da arquitetura RISC Zero) em um binário executável através do simulador.
+RISC Zero é uma arquitetura monociclo de uso geral com 16 registradores, construida para a disciplina de **Prática em Organização de Computadores (SSC0119)** da Universidade de São Paulo. Junto de seu esquemático do circuito, foram construídos um _assembler_ e um simulador capazes de transformarem um código em Zassembly (Assembly da arquitetura RISC Zero) em um binário executável através do simulador. O projeto também possui um **video explicativo** que pode ser encontrado [aqui!](https://youtu.be/YXtCHWrM9L8)
 
 <details>
   <summary>
@@ -35,7 +35,7 @@ RISC Zero é uma arquitetura monociclo de uso geral com 16 registradores, constr
 - Registradores ocultos: 
     - `PC` (Program Counter)
 
-## Layout das instruções:
+### Layout das instruções:
 RISC Zero possui 4 diferentes layouts de instruções, uma vez que cada uma empenha um papel diferente ao ser chamada:
 
 - **Instrução tipo-R:** Caracteriza-se por ser uma instrução de acesso à simultâneos registradores. Normalmente efetuando operações aritméticas e bit-a-bit.
@@ -55,14 +55,14 @@ I            | 4      | 4    | -    | 8  | -
 M            | 4      | 4    | 4    | 4  | -
 J            | 4      | 4    | -    | -  | 8
 
-## Ciclo da instrução
+### Ciclo da instrução
 - Na borda de subida do clock, ocorre a leitura da instrução e sua decodificação.
 - Na borda de descida, ocorre o write back.
 
-## Instruções suportadas
+### Instruções suportadas
 Contendo uma gama de instruções, a arquitetura RISC Zero possui uma linguagem montadora plenamente funcional, possuindo suporte para definição de valores estáticos, macros, rótulos e funções. Além disso, pseudoinstruções muito úteis também podem ser encontradas em ``assembler/examples/stdio.zasm``.
 
-### Instruções aritméticas:
+#### Instruções aritméticas:
 
 - [R] `ADD <reg1> <reg2>` - `reg1 += reg2`
 - [R] `SUB <reg1> <reg2>`  - `reg1 -= reg2`
@@ -70,7 +70,7 @@ Contendo uma gama de instruções, a arquitetura RISC Zero possui uma linguagem 
 - [R] `DIV <reg1> <reg2>` - `HI = reg1 / reg2, LO = reg1 % reg2`
 - [R] `MOV <reg1> <reg2>` - `reg1 := reg2`
 
-### Instruções bit-a-bit:
+#### Instruções bit-a-bit:
 
 - [R] `AND <reg1> <reg2>` - `reg1 &= reg2`
 - [R] `OR <reg1> <reg2>` - `reg1 |= reg2`
@@ -78,7 +78,7 @@ Contendo uma gama de instruções, a arquitetura RISC Zero possui uma linguagem 
 - [R] `SHL <reg1> <reg2>` - `reg1 <<= reg2`
 - [R] `SHR <reg1> <reg2>` - `reg1 >>= reg2`
 
-### Instruções de desvio:
+#### Instruções de desvio:
 
 - [J] `BEQ <reg1>` - `if (ZERO) goto reg1`
 - [J] `BNE <reg1>` - `if (!ZERO) goto reg1`
@@ -88,23 +88,23 @@ Contendo uma gama de instruções, a arquitetura RISC Zero possui uma linguagem 
 - [J] `BGE <reg1>` - `if (ZERO or !NEG) goto reg1`
 - [J] `JMP <reg1>` - `goto reg1`
 
-### Instruções de comparação:
+#### Instruções de comparação:
 
 - [R] `CMP <reg1> <reg2>` - `ZERO := (reg1 == reg2), NEG := (reg1 < reg2)`
 
-### Instruções de acesso à memória:
+#### Instruções de acesso à memória:
 
 - [M] `LDB <reg1> <im> <reg2>` - `reg1 := *(reg2 + im)`
 - [M] `STB <reg1> <im> <reg2>` - `*(reg2 + im) := reg1`
 - [M] `LDW <reg1> <im> <reg2>` - `reg1 := *(int16_t *)(reg2 + im)`
 - [M] `STW <reg1> <im> <reg2>` - `*(int16_t *)(reg2 + im) := reg1`
 
-### Instruções imediatas
+#### Instruções imediatas
 - [I] `ANDI <reg1> <im>` - `reg1 &= im`
 - [I] `ADDI <reg1> <im>` - `reg1 += im`
 - [I] `LUI <reg1> <im>` - `reg1 = im << 8`
 
-### Input/Output
+#### Input/Output
 
 A entrada/saída de dados através dos dispositivos de entrada/saída
 é feita a partir da instrução `INT` (Interrupt), que atua como uma
