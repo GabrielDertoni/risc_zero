@@ -72,9 +72,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
                 }
 
-                Key::Char(chr) => {
-                    curr_state.write_keyboard_input(chr);
-                }
+                Key::Char(chr) => curr_state.write_keyboard_input(chr as u8),
+                Key::Backspace => curr_state.write_keyboard_input(0x08),
+                Key::Delete    => curr_state.write_keyboard_input(0x7f),
 
                 Key::Esc | Key::Down => break,
                 _                    => (),

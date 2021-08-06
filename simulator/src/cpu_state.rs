@@ -177,9 +177,9 @@ impl CPUState {
         Ok(true)
     }
 
-    pub fn write_keyboard_input(&mut self, key: char) {
+    pub fn write_keyboard_input(&mut self, key: u8) {
         let queue_end = u16::from_be_bytes([self.memory[KEYBOARD_QUEUE_END], self.memory[KEYBOARD_QUEUE_END + 1]]);
-        self.memory[queue_end as usize] = key as u8;
+        self.memory[queue_end as usize] = key;
         let queue_end = ((queue_end + 1) & 0b111) + (queue_end & 0xfff8);
         self.memory[KEYBOARD_QUEUE_END..KEYBOARD_QUEUE_END + 2].copy_from_slice(&queue_end.to_be_bytes());
     }
