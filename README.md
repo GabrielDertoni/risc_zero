@@ -60,7 +60,7 @@ J            | 4      | 4    | -    | -  | 8
 - Na borda de descida, ocorre o write back.
 
 ### Instruções suportadas
-Contendo uma gama de instruções, a arquitetura RISC Zero possui uma linguagem montadora plenamente funcional, possuindo suporte para definição de valores estáticos, macros, rótulos e funções. Além disso, pseudoinstruções muito úteis também podem ser encontradas em ``assembler/examples/stdio.zasm``.
+Contendo uma gama de instruções, a arquitetura RISC Zero possui uma linguagem montadora plenamente funcional, possuindo suporte para definição de valores estáticos, macros, rótulos e funções. Além disso, pseudoinstruções muito úteis também podem ser encontradas em ``assembler/examples/stdio.zasm`` e ``assembler/examples/utils.zasm``.
 
 #### Instruções aritméticas:
 
