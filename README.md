@@ -8,7 +8,7 @@ RISC Zero é uma arquitetura monociclo de uso geral com 16 registradores, constr
   <summary>
     Esquemático do circuito
   </summary>
-    
+
 ![Diagrama da Arquitetura](assets/architecture.png "Diagrama da Arquitetura")
 
 </details>
@@ -103,6 +103,40 @@ Contendo uma gama de instruções, a arquitetura RISC Zero possui uma linguagem 
 - [I] `ANDI <reg1> <im>` - `reg1 &= im`
 - [I] `ADDI <reg1> <im>` - `reg1 += im`
 - [I] `LUI <reg1> <im>` - `reg1 = im << 8`
+
+## Codificação das instruções
+
+Instrução | OpCode | Tipo | Opts
+----------|--------|------|-----
+NOOP      | 0      | -    | -
+ADD       | 1      | R    | 0
+SUB       | 1      | R    | 1
+MULT      | 1      | R    | 2
+MOV       | 1      | R    | 3
+DIV       | 1      | R    | 4
+AND       | 1      | R    | 5
+OR        | 1      | R    | 6
+NOT       | 1      | R    | 7
+SHL       | 1      | R    | 8
+SHR       | 1      | R    | 9
+CMP       | 1      | R    | 10
+JMP       | 2      | J    | 0
+BEQ       | 2      | J    | 1
+BNE       | 2      | J    | 2
+BLT       | 2      | J    | 3
+BLE       | 2      | J    | 4
+BGT       | 2      | J    | 5
+BGE       | 2      | J    | 6
+ADDI      | 3      | I    | -
+LUI       | 4      | I    | -
+ANDI      | 5      | I    | -
+Stw       | 6      | M    | -
+Ldw       | 7      | M    | -
+Stb       | 8      | M    | -
+Ldb       | 9      | M    | -
+Int       | 10     | -    | -
+Hlt       | 11     | -    | -
+
 
 #### Input/Output
 
