@@ -36,6 +36,7 @@ RISC Zero é uma arquitetura monociclo de uso geral com 16 registradores, constr
     - `PC` (Program Counter)
 
 ### Layout das instruções:
+
 RISC Zero possui 4 diferentes layouts de instruções, uma vez que cada uma empenha um papel diferente ao ser chamada:
 
 - **Instrução tipo-R:** Caracteriza-se por ser uma instrução de acesso à simultâneos registradores. Normalmente efetuando operações aritméticas e bit-a-bit.
@@ -56,10 +57,12 @@ M            | 4      | 4    | 4    | 4  | -
 J            | 4      | 4    | -    | -  | 8
 
 ### Ciclo da instrução
+
 - Na borda de subida do clock, ocorre a leitura da instrução e sua decodificação.
 - Na borda de descida, ocorre o write back.
 
 ### Instruções suportadas
+
 Contendo uma gama de instruções, a arquitetura RISC Zero possui uma linguagem montadora plenamente funcional, possuindo suporte para definição de valores estáticos, macros, rótulos e funções. Além disso, pseudoinstruções muito úteis também podem ser encontradas em ``assembler/examples/stdio.zasm`` e ``assembler/examples/utils.zasm``.
 
 #### Instruções aritméticas:
@@ -100,6 +103,7 @@ Contendo uma gama de instruções, a arquitetura RISC Zero possui uma linguagem 
 - [M] `STW <reg1> <im> <reg2>` - `*(int16_t *)(reg2 + im) := reg1`
 
 #### Instruções imediatas
+
 - [I] `ANDI <reg1> <im>` - `reg1 &= im`
 - [I] `ADDI <reg1> <im>` - `reg1 += im`
 - [I] `LUI <reg1> <im>` - `reg1 = im << 8`
@@ -137,6 +141,26 @@ Ldb       | 9      | M    | -
 Int       | 10     | -    | -
 Hlt       | 11     | -    | -
 
+## Valores dos registradores
+
+Registrador | Valor
+------------|------
+TMP         | 0
+HI          | 1
+LO          | 2
+SP          | 3
+ADR         | 4
+ACC         | 5
+FL          | 6
+R1          | 7
+R2          | 8
+R3          | 9
+R4          | 10
+R5          | 11
+R6          | 12
+R7          | 13
+R8          | 14
+R9          | 15
 
 #### Input/Output
 
