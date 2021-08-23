@@ -85,7 +85,7 @@ impl Instruction {
             },
 
             // I-type instructions: Immediate value related instructions
-            3 | 4 | 5 | 6 => {
+            3 | 4 | 5 => {
                 let reg = Reg::from_addr(((code >> 8) & 0xf) as u8);
                 let immediate: u8 = (code & 0xff) as u8;
 
@@ -98,23 +98,23 @@ impl Instruction {
             },
 
             // M-type instructions: Memory related
-            7 | 8 | 9 | 10 => {
+            6 | 7 | 8 | 9 => {
                 let reg1 = Reg::from_addr(((code >> 8) & 0xf) as u8);
                 let reg2 = Reg::from_addr(((code >> 4) & 0xf) as u8);
                 let immediate = (code & 0b1111) as u8;
                 
                 match opcode {
-                    7  => Ldb(reg1, reg2, immediate),
-                    8  => Stb(reg1, reg2, immediate),
-                    9  => Ldw(reg1, reg2, immediate),
-                    10 => Stw(reg1, reg2, immediate),
-                    _  => unreachable!(),
+                    6 => Ldb(reg1, reg2, immediate),
+                    7 => Stb(reg1, reg2, immediate),
+                    8 => Ldw(reg1, reg2, immediate),
+                    9 => Stw(reg1, reg2, immediate),
+                    _ => unreachable!(),
                 }
             },
 
             // Operational system related instructions
-            11 => Int,
-            12 => Hlt,
+            10 => Int,
+            11 => Hlt,
             n => return Err(
                 format!("Unexpected opcode: {}", n)
             ),
@@ -206,10 +206,10 @@ impl Instruction {
             Ldb(dest, reg, imm) | Stb(dest, reg, imm) |
             Ldw(dest, reg, imm) | Stw(dest, reg, imm)  => {
                 let opcode = match self {
-                    Ldb(..) => 7,
-                    Stb(..) => 8,
-                    Ldw(..) => 9,
-                    Stw(..) => 10,
+                    Ldb(..) => 6,
+                    Stb(..) => 7,
+                    Ldw(..) => 8,
+                    Stw(..) => 9,
                     _       => unreachable!(),
                 };
 
@@ -220,12 +220,12 @@ impl Instruction {
             }
 
             Int  => {
-                let opcode = 11;
+                let opcode = 10;
                 encoded |= opcode << 12;
             }
 
             Hlt => {
-                let opcode = 12;
+                let opcode = 11;
                 encoded |= opcode << 12;
             }
         }

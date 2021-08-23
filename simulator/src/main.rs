@@ -6,6 +6,7 @@ mod os;
 mod ui;
 mod cpu_state;
 mod io_device;
+mod emulation_frame;
 
 // Architecture related stuff
 use architecture_utils::*;
@@ -20,7 +21,7 @@ use tui::Terminal;
 use tui::backend::TermionBackend;
 
 // Local
-use ui::draw;
+use ui::draw_home;
 use io_device::Console;
 use event::{Config, Events, Event};
 use cpu_state::CPUState;
@@ -72,9 +73,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
                 }
 
-                Key::Char(chr) => {
-                    curr_state.write_keyboard_input(chr);
-                }
+                Key::Char(chr) => curr_state.write_keyboard_input(chr as u8),
+                Key::Backspace => curr_state.write_keyboard_input(0x08),
+                Key::Delete    => curr_state.write_keyboard_input(0x7f),
 
                 Key::Esc | Key::Down => break,
                 _                    => (),
@@ -89,7 +90,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
 
                 if tick_count % 11 == 0 {
-                    terminal.draw(|f| draw(f, &curr_state, &mut console))?;
+                    terminal.draw(|f| draw_home(f, &curr_state, &mut console))?;
                 }
 
                 tick_count += 1;

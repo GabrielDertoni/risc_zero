@@ -9,18 +9,65 @@ main:
     push $r4
     jal  getchar
     pop  $r4
+
+    li   $r6, ' '               ; Erase cursor
+    stb  $r6, $r4(0)
+
+    li   $r2, 0x08              ; Check backspace
+    beql $acc, $r2, .backspace
     li   $r2, '\n'
     bnel $acc, $r2, .put_char
 
-    li   $r5, 60
-    div  $r4, $r5      ; ($r4 - $r4 % 60) + 60
+    ; Handle a line break
+
+    li   $r5, SCREEN_WIDTH
+    div  $r4, $r5               ; ($r4 - $r4 % 60) + 60
     sub  $r4, $lo
     add  $r4, $r5
-    jl   .loop
+    jl   .show_cursor
+
+.backspace:
+    ; If ($r4 + 1) % 60 == 0, it means we have just crossed a line boundary,
+    ; enter a backspace loop to stop at the first non-blank char
+    mov  $r7, $r4
+    ; addi $r7, 1
+
+    divi $r7, SCREEN_WIDTH
+
+    ; $r8 will bi the number of spaces deleted
+    li   $r8, 0
+    beql $lo, $r9, .backspace_loop
+
+    subi $r4, 1
+    stb  $r6, $r4(0)
+    jl   .show_cursor
+
+.backspace_loop:                ; Iterates trhough the chars stopping once a non
+                                ; blank is found
+
+    beql $r4, $r9, .break_loop  ; If it has reached the start of the screen $r4 == 0, stop backspace
+    subi $r4, 1
+    ldb  $r1, $r4(0)
+    li   $r2, ' '
+    bnel $r1, $r2, .break_loop  ; If screen[$r4] != ' ', stop backspace
+
+    stb  $r6, $r4(0)
+    addi $r8, 1
+    jl   .backspace_loop
+
+.break_loop:
+    beql $r8, $r9, .no_increment; If $r8 == 0, we don't want to increment
+    addi $r4, 1
+.no_increment:
+    jl   .show_cursor
 
 .put_char:
     stb  $acc, $r4(0)
     addi $r4, 1
+
+.show_cursor:
+    li   $acc, '|'
+    stb  $acc, $r4(0)
 
     jl   .loop
     hlt
